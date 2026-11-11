@@ -1,0 +1,327 @@
+#!/bin/bash
+# dpkg-query and awk programs are single-quoted on purpose.
+# shellcheck disable=SC2016
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Ga Hing Woo <gahing@gahingwoo.com>
+#
+# Check a Roxora image without booting it.
+#
+#   sudo verify/verify-image.sh [--offline] <image.img | image.img.xz>
+#
+# The image is attached read-only. Its root filesystem is mounted under an
+# overlay with a throwaway upper layer, so apt can run in a chroot without
+# changing the image. Needs root and an arm64 host (the chroot runs natively).
+#
+# --offline  skip "apt-get update" in the chroot and use the package lists the
+#            image shipped with.
+#
+# Exits 0 when every check passes, 1 otherwise.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(dirname "${HERE}")"
+LISTS="${REPO}/userpatches/roxora"
+REF="${HERE}/reference"
+
+offline=no
+image=""
+for arg in "$@"; do
+	case "${arg}" in
+		--offline) offline=yes ;;
+		-h | --help)
+			sed -n '5,17s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			exit 0
+			;;
+		*) image="${arg}" ;;
+	esac
+done
+[[ -n "${image}" && -f "${image}" ]] || {
+	echo "usage: $0 [--offline] <image.img | image.img.xz>" >&2
+	exit 2
+}
+[[ "$(id -u)" == 0 ]] || {
+	echo "verify-image.sh: needs root (loop devices, mounts, chroot)" >&2
+	exit 2
+}
+
+work="$(mktemp -d)"
+loop=""
+cleanup() {
+	set +e
+	for m in "${work}/root/proc" "${work}/root/tmp" "${work}/root" "${work}/lower" "${work}/upper"; do
+		mountpoint -q "${m}" && umount -l "${m}"
+	done
+	[[ -n "${loop}" ]] && losetup -d "${loop}"
+	rm -rf "${work}"
+}
+trap cleanup EXIT
+
+declare -i failures=0
+declare -a summary=()
+pass() {
+	summary+=("PASS  $1")
+	echo "PASS  $1"
+}
+fail() {
+	summary+=("FAIL  $1")
+	echo "FAIL  $1"
+	failures+=1
+}
+detail() { sed 's/^/      /'; }
+
+# List file without comments and blank lines.
+list() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
+
+# Hardware-layer package patterns, taken from the first record of the pin file.
+mapfile -t hw_patterns < <(awk '/^Package:/ { for (i = 2; i <= NF; i++) print $i; exit }' "${LISTS}/apt/roxora-armbian.pref")
+is_hw() {
+	local p
+	for p in "${hw_patterns[@]}"; do
+		# shellcheck disable=SC2053 # glob match on purpose
+		[[ "$1" == ${p} ]] && return 0
+	done
+	return 1
+}
+
+# --- attach -----------------------------------------------------------------
+
+if [[ "${image}" == *.xz ]]; then
+	echo "Decompressing ${image}"
+	xz -dc "${image}" > "${work}/image.img"
+	image="${work}/image.img"
+fi
+loop="$(losetup -f --show -r -P "${image}")"
+udevadm settle 2> /dev/null || true
+rootpart="$(find /dev -maxdepth 1 -name "$(basename "${loop}")p*" | sort -V | tail -1)"
+[[ -b "${rootpart}" ]] || {
+	echo "verify-image.sh: no partition found on ${loop}" >&2
+	exit 2
+}
+mkdir -p "${work}/lower" "${work}/upper" "${work}/root"
+mount -o ro "${rootpart}" "${work}/lower"
+mount -t tmpfs tmpfs "${work}/upper"
+mkdir -p "${work}/upper/data" "${work}/upper/work"
+mount -t overlay overlay -o "lowerdir=${work}/lower,upperdir=${work}/upper/data,workdir=${work}/upper/work" "${work}/root"
+mount -t proc proc "${work}/root/proc"
+mount -t tmpfs tmpfs "${work}/root/tmp"
+R="${work}/root"
+in_root() { chroot "${R}" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C "$@"; }
+
+# shellcheck source=/dev/null
+# shellcheck disable=SC2153 # BOARD comes from the sourced file
+board="$(. "${R}/etc/armbian-release" && echo "${BOARD}")"
+kpkg="$(in_root dpkg-query -W -f '${Package}\n' 'linux-image-*' | head -1)"
+branch="$(sed -E 's/^linux-image-([^-]+)-.*/\1/' <<< "${kpkg}")"
+echo "Image: board ${board}, kernel package ${kpkg} (branch ${branch})"
+echo
+
+# --- 1. packages against the Ubuntu reference ---------------------------------
+
+mapfile -t installed < <(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' | awk '$1 ~ /^ii/ { print $2 }' | sort -u)
+declare -A ref=() allow=()
+while read -r p _; do ref["${p%%:*}"]=1; done < "${REF}/noble-server-cloudimg-arm64.manifest"
+while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist")
+unexplained=()
+for p in "${installed[@]}"; do
+	[[ -n "${ref[${p}]:-}" ]] && continue
+	is_hw "${p}" && continue
+	[[ -n "${allow[${p}]:-}" ]] && continue
+	unexplained+=("${p}")
+done
+if [[ ${#unexplained[@]} -eq 0 ]]; then
+	pass "packages: ${#installed[@]} installed; every package not in the Ubuntu server image is hardware-layer or allowlisted"
+else
+	fail "packages: ${#unexplained[@]} not in the Ubuntu reference, not hardware-layer, not allowlisted"
+	printf '%s\n' "${unexplained[@]}" | detail
+fi
+
+# --- 2. apt pinning and upgrade origin --------------------------------------
+
+if cmp -s "${LISTS}/apt/roxora-armbian.pref" "${R}/etc/apt/preferences.d/roxora-armbian.pref"; then
+	pass "apt: Armbian pin file is installed unchanged"
+else
+	fail "apt: /etc/apt/preferences.d/roxora-armbian.pref is missing or differs from userpatches/roxora/apt"
+fi
+if [[ -f "${R}/etc/apt/sources.list.d/armbian.sources" ]]; then
+	pass "apt: Armbian source list is present (needed for kernel updates)"
+else
+	fail "apt: /etc/apt/sources.list.d/armbian.sources is missing"
+fi
+
+if [[ "${offline}" == no ]]; then
+	cp -L /etc/resolv.conf "${R}/tmp/resolv.conf"
+	rm -f "${R}/etc/resolv.conf"
+	ln -s /tmp/resolv.conf "${R}/etc/resolv.conf"
+	if ! in_root apt-get -qq update > "${work}/apt-update.log" 2>&1; then
+		fail "apt: apt-get update failed in the chroot"
+		detail < "${work}/apt-update.log"
+	fi
+fi
+
+# Every package the Armbian repository offers: is its candidate from Armbian?
+mapfile -t armbian_pkgs < <(cat "${R}"/var/lib/apt/lists/*armbian*_Packages 2> /dev/null | awk '/^Package:/ { print $2 }' | sort -u)
+if [[ ${#armbian_pkgs[@]} -eq 0 ]]; then
+	fail "apt: no Armbian package lists in the image"
+else
+	in_root apt-cache policy "${armbian_pkgs[@]}" > "${work}/policy.txt" 2> /dev/null || true
+	# For each package, print "<name> <candidate-origin>", where the origin is
+	# "armbian" when one of the candidate's sources is the Armbian repository.
+	awk '
+		/^[^ ].*:$/ { flush(); pkg = substr($0, 1, length($0) - 1); cand = ""; invers = 0; org = "none"; next }
+		/^  Candidate:/ { cand = $2; next }
+		/^ [ *]{3}[^ ]/ { invers = ($(NF-1) == cand || $(NF-1) == "***" && $NF == cand); v = ($1 == "***") ? $2 : $1; invers = (v == cand); next }
+		invers && /armbian/ { org = "armbian"; next }
+		invers && /ubuntu|ports\.ubuntu/ { if (org != "armbian") org = "ubuntu"; next }
+		function flush() { if (pkg != "") print pkg, (cand == "(none)" ? "none" : org) }
+		END { flush() }
+	' "${work}/policy.txt" > "${work}/candidates.txt"
+	bad=()
+	while read -r p org; do
+		[[ "${org}" == armbian ]] || continue
+		is_hw "${p}" || bad+=("${p}")
+	done < "${work}/candidates.txt"
+	hw_from_armbian="$(awk '$2 == "armbian"' "${work}/candidates.txt" | wc -l)"
+	if [[ ${#bad[@]} -eq 0 ]]; then
+		pass "apt: of ${#armbian_pkgs[@]} packages in the Armbian repository, only the ${hw_from_armbian} hardware-layer ones have an Armbian candidate"
+	else
+		fail "apt: Armbian is the candidate for packages outside the hardware layer"
+		printf '%s\n' "${bad[@]}" | detail
+	fi
+fi
+
+bf="$(in_root apt-cache policy base-files)"
+bf_inst="$(awk '/Installed:/ { print $2 }' <<< "${bf}")"
+if in_root dpkg-query -W -f '${Maintainer}\n' base-files | grep -qi ubuntu &&
+	awk -v v="${bf_inst}" '$1 == v || ($1 == "***" && $2 == v) { f = 1; next } f && /^ +[0-9-]+ / { if ($0 ~ /ubuntu/) ok = 1; next } f { f = 0 } END { exit !ok }' <<< "${bf}"; then
+	pass "apt: base-files ${bf_inst} is Ubuntu's, from the Ubuntu archive"
+else
+	fail "apt: base-files is not the Ubuntu archive's"
+	detail <<< "${bf}"
+fi
+
+in_root apt-get -s -o Debug::NoLocking=1 full-upgrade > "${work}/upgrade.txt" 2>&1 || true
+bad=()
+while read -r p origin; do
+	is_hw "${p}" || bad+=("${p} (${origin})")
+done < <(awk '/^Inst / && /Armbian/ { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
+if [[ ${#bad[@]} -eq 0 ]]; then
+	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages and none outside the hardware layer from Armbian"
+else
+	fail "apt: full-upgrade would install or upgrade Armbian distro-layer packages"
+	printf '%s\n' "${bad[@]}" | detail
+fi
+
+# --- 3. removed files are gone, Ubuntu files are as shipped -------------------
+
+present=()
+while read -r pattern; do
+	for path in "${R}"${pattern}; do
+		[[ -e "${path}" || -L "${path}" ]] && present+=("${path#"${R}"}")
+	done
+done < <(
+	list "${LISTS}/bsp-remove.list"
+	list "${LISTS}/rootfs-remove.list"
+)
+if [[ ${#present[@]} -eq 0 ]]; then
+	pass "files: none of the removed BSP and rootfs paths exist"
+else
+	fail "files: ${#present[@]} removed paths exist"
+	printf '%s\n' "${present[@]}" | detail
+fi
+
+mapfile -t keep < <(list "${LISTS}/keep-modified.list")
+changed=()
+while read -r path; do
+	owner="$(in_root dpkg-query -S "${path}" 2> /dev/null | head -1 | sed 's/: .*//')"
+	[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
+	skip=no
+	for k in "${keep[@]}"; do
+		# shellcheck disable=SC2053 # glob match on purpose
+		[[ "${path}" == ${k} ]] && skip=yes && break
+	done
+	[[ "${skip}" == yes ]] || changed+=("${path} (${owner})")
+done < <(in_root dpkg --verify 2> /dev/null | awk '{ print $NF }' | sort -u)
+if [[ ${#changed[@]} -eq 0 ]]; then
+	pass "files: dpkg --verify finds no changed Ubuntu package files beyond keep-modified.list"
+else
+	fail "files: Ubuntu package files differ from the packages"
+	printf '%s\n' "${changed[@]}" | detail
+fi
+
+if grep -q '^ID=ubuntu$' "${R}/etc/os-release" && ! grep -qi armbian "${R}/etc/os-release"; then
+	# shellcheck disable=SC1091
+	pass "files: /etc/os-release is Ubuntu's ($(. "${R}/etc/os-release" && echo "${PRETTY_NAME}"))"
+else
+	fail "files: /etc/os-release is not Ubuntu's"
+fi
+
+# --- 4. boot files -----------------------------------------------------------
+
+boot_errors=()
+for f in boot.scr boot.cmd armbianEnv.txt; do
+	[[ -f "${R}/boot/${f}" ]] || boot_errors+=("/boot/${f} missing")
+done
+for l in Image uInitrd dtb; do
+	if [[ ! -L "${R}/boot/${l}" ]]; then
+		boot_errors+=("/boot/${l} is not a symlink")
+	elif [[ ! -e "${R}/boot/$(readlink "${R}/boot/${l}")" ]]; then
+		boot_errors+=("/boot/${l} points at $(readlink "${R}/boot/${l}"), which is missing")
+	fi
+done
+fdtfile="$(sed -n 's/^fdtfile=//p' "${R}/boot/armbianEnv.txt" 2> /dev/null | tail -1)"
+if [[ -z "${fdtfile}" ]]; then
+	boot_errors+=("armbianEnv.txt sets no fdtfile")
+elif [[ ! -f "${R}/boot/dtb/${fdtfile}" ]]; then
+	boot_errors+=("/boot/dtb/${fdtfile} (fdtfile) missing")
+fi
+kver="$(readlink "${R}/boot/Image" 2> /dev/null | sed 's/^vmlinuz-//')"
+[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
+if command -v dumpimage > /dev/null && [[ -f "${R}/boot/uInitrd" ]]; then
+	dumpimage -l "${R}/boot/uInitrd" 2> /dev/null | grep -q 'RAMDisk Image' || boot_errors+=("/boot/uInitrd is not a U-Boot ramdisk image")
+fi
+# The bootloader at 32 KiB must be the one the installed U-Boot package carries.
+ubin="$(find "${R}"/usr/lib/linux-u-boot-* -name 'u-boot-rockchip.bin' 2> /dev/null | head -1)"
+if [[ -n "${ubin}" ]]; then
+	size="$(stat -c %s "${ubin}")"
+	if ! cmp -s -n "${size}" "${ubin}" <(dd if="${loop}" bs=32k skip=1 count=$(((size + 32767) / 32768)) status=none); then
+		boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
+	fi
+else
+	boot_errors+=("no u-boot-rockchip.bin in /usr/lib/linux-u-boot-*")
+fi
+if [[ ${#boot_errors[@]} -eq 0 ]]; then
+	pass "boot: boot.scr, armbianEnv.txt (fdtfile=${fdtfile}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
+else
+	fail "boot: ${#boot_errors[@]} problems"
+	printf '%s\n' "${boot_errors[@]}" | detail
+fi
+
+# --- 5. first boot ---------------------------------------------------------
+
+fb_errors=()
+for f in /var/lib/cloud/seed/nocloud/user-data /var/lib/cloud/seed/nocloud/meta-data /etc/cloud/cloud.cfg.d/99-roxora.cfg; do
+	[[ -f "${R}${f}" ]] || fb_errors+=("${f} missing")
+done
+in_root dpkg-query -W cloud-init > /dev/null 2>&1 || fb_errors+=("cloud-init is not installed")
+[[ "$(awk -F: '$1 == "root" { print $2 }' "${R}/etc/shadow")" == "*" ]] || fb_errors+=("root has a password")
+[[ ! -e "${R}/root/.not_logged_in_yet" ]] || fb_errors+=("/root/.not_logged_in_yet exists (Armbian first-login wizard)")
+grep -rqs -- '--autologin' "${R}/etc/systemd/system" && fb_errors+=("a getty autologin override exists")
+[[ "$(cat "${R}/etc/hostname")" == "${board}" ]] || fb_errors+=("hostname is '$(cat "${R}/etc/hostname")', expected '${board}'")
+if [[ ${#fb_errors[@]} -eq 0 ]]; then
+	pass "first boot: cloud-init seeded, root locked, no autologin, hostname ${board}"
+else
+	fail "first boot: ${#fb_errors[@]} problems"
+	printf '%s\n' "${fb_errors[@]}" | detail
+fi
+
+# --- summary -------------------------------------------------------------------
+
+echo
+echo "Summary for $(basename "${1:-${image}}")"
+printf '  %s\n' "${summary[@]}"
+if ((failures > 0)); then
+	echo "${failures} check(s) failed"
+	exit 1
+fi
+echo "All checks passed"

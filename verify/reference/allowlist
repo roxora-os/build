@@ -1,0 +1,93 @@
+# Packages allowed in a Roxora image although they are not in the Ubuntu
+# server cloud image reference and do not match a hardware-layer pattern.
+# Format: <package> <reason>. All of them come from the Ubuntu archive unless
+# the reason says otherwise.
+
+# Roxora's own additions and the board support package
+armbian-bsp-cli-radxa-rock-4d-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
+armbian-bsp-cli-armsom-cm5-io-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
+cloud-guest-utils                   growpart for cloud-init's first-boot partition resize
+
+# Armbian's minimal package list (config/cli/noble/main/packages); plain Ubuntu packages
+alsa-utils        Armbian minimal list: audio mixer and ALSA state restore for on-board codecs
+debconf-utils     Armbian minimal list: debconf-get-selections and friends
+debsums           Armbian minimal list: verify installed package files
+dialog            Armbian minimal list: dialog boxes for scripts
+fake-hwclock      Armbian minimal list: keeps a sane clock across reboots on boards without a battery-backed RTC
+figlet            Armbian minimal list: banner text (no longer used by any motd script)
+iw                Armbian minimal list: Wi-Fi configuration; also used by the BSP's Wi-Fi power-save udev rule
+libcaca0          dependency of toilet
+mmc-utils         Armbian minimal list: eMMC and SD tool (mmc extcsd, boot partitions)
+pahole            Armbian minimal list: BTF/DWARF tool used by kernel module builds
+toilet            Armbian minimal list: banner text (no longer used by any motd script)
+toilet-fonts      dependency of toilet
+wireguard-tools   Armbian minimal list: WireGuard userspace tools
+wireless-regdb    Armbian minimal list: Wi-Fi regulatory database
+wpasupplicant     Armbian minimal list: Wi-Fi client
+libpcsclite1      dependency of wpasupplicant
+libasound2-data   dependency of alsa-utils
+libasound2t64     dependency of alsa-utils
+libatopology2t64  dependency of alsa-utils
+libfftw3-single3  dependency of alsa-utils
+libsamplerate0    dependency of alsa-utils
+gnupg2            Armbian debootstrap list: transitional package for gnupg
+gpiod             Armbian minimal list on some releases: GPIO command-line tools
+libgpiod2t64      dependency of gpiod
+
+# Required by the board support package's Depends line
+fping             BSP Depends (kept so the BSP package installs; nothing in Roxora runs it)
+
+# ROCK 4D: the on-board AIC8800 Wi-Fi/Bluetooth driver is built with DKMS in
+# the image (Armbian's radxa-aic8800 extension). The driver packages come
+# from Radxa's GitHub releases, the toolchain from the Ubuntu archive.
+aic8800-firmware                 ROCK 4D Wi-Fi/Bluetooth firmware (Radxa)
+aic8800-usb-dkms                 ROCK 4D Wi-Fi/Bluetooth driver source, built with DKMS (Radxa)
+linux-headers-edge-rockchip64    Armbian kernel headers, needed to build the ROCK 4D Wi-Fi driver
+dkms                             builds the ROCK 4D Wi-Fi driver
+binutils                         toolchain for the ROCK 4D Wi-Fi driver build
+binutils-aarch64-linux-gnu       toolchain for the ROCK 4D Wi-Fi driver build
+binutils-common                  toolchain for the ROCK 4D Wi-Fi driver build
+bison                            kernel headers build dependency
+bzip2                            dependency of dpkg-dev
+cpp                              toolchain for the ROCK 4D Wi-Fi driver build
+cpp-13                           toolchain for the ROCK 4D Wi-Fi driver build
+cpp-13-aarch64-linux-gnu         toolchain for the ROCK 4D Wi-Fi driver build
+cpp-14                           toolchain for the ROCK 4D Wi-Fi driver build
+cpp-14-aarch64-linux-gnu         toolchain for the ROCK 4D Wi-Fi driver build
+cpp-aarch64-linux-gnu            toolchain for the ROCK 4D Wi-Fi driver build
+dpkg-dev                         dependency of dkms
+flex                             kernel headers build dependency
+gcc                              toolchain for the ROCK 4D Wi-Fi driver build
+gcc-13                           toolchain for the ROCK 4D Wi-Fi driver build
+gcc-13-aarch64-linux-gnu         toolchain for the ROCK 4D Wi-Fi driver build
+gcc-13-base                      toolchain for the ROCK 4D Wi-Fi driver build
+gcc-14                           toolchain for the ROCK 4D Wi-Fi driver build
+gcc-14-aarch64-linux-gnu         toolchain for the ROCK 4D Wi-Fi driver build
+gcc-aarch64-linux-gnu            toolchain for the ROCK 4D Wi-Fi driver build
+libasan8                         gcc runtime
+libatomic1                       gcc runtime
+libbinutils                      binutils library
+libcc1-0                         gcc runtime
+libctf0                          binutils library
+libctf-nobfd0                    binutils library
+libdpkg-perl                     dependency of dpkg-dev
+libelf-dev                       kernel headers build dependency
+libfile-fnmatch-perl             dependency of dpkg-dev
+libgcc-13-dev                    gcc runtime
+libgcc-14-dev                    gcc runtime
+libgomp1                         gcc runtime
+libgprofng0                      binutils library
+libhwasan0                       gcc runtime
+libisl23                         gcc dependency
+libitm1                          gcc runtime
+liblsan0                         gcc runtime
+libmpc3                          gcc dependency
+libsframe1                       binutils library
+libssl-dev                       kernel headers build dependency
+libtsan2                         gcc runtime
+libubsan1                        gcc runtime
+libzstd-dev                      kernel headers build dependency
+lto-disabled-list                dependency of dpkg-dev
+m4                               dependency of bison
+make                             toolchain for the ROCK 4D Wi-Fi driver build
+zlib1g-dev                       kernel headers build dependency
