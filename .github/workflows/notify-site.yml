@@ -1,0 +1,39 @@
+# Tells the website to rebuild when a release is published or boards.conf
+# changes, so the Download and Boards pages follow without waiting for the
+# site's hourly schedule.
+#
+# Sending repository_dispatch to another repository needs a token: the
+# SITE_DISPATCH_TOKEN secret, a fine-grained token limited to
+# roxora-os/roxora-os.github.io with "Contents: read and write". Without it
+# this workflow does nothing and the site's hourly rebuild picks the change up.
+name: Notify site
+
+on:
+  release:
+    types: [published, edited, deleted]
+  push:
+    branches: [main]
+    paths:
+      - boards.conf
+      - docs/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Send repository_dispatch to the site
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::notice::SITE_DISPATCH_TOKEN is not set; the site picks this up at its next hourly build."
+            exit 0
+          fi
+          gh api repos/roxora-os/roxora-os.github.io/dispatches \
+            -f event_type=build-updated \
+            -F "client_payload[source]=${GITHUB_EVENT_NAME}" \
+            -F "client_payload[sha]=${GITHUB_SHA}"
