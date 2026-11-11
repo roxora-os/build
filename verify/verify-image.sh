@@ -395,14 +395,17 @@ else
 	[[ "$(cut -d: -f2 <<< "${roxora_shadow}")" == '$'* ]] || fb_errors+=("roxora has no password")
 	[[ "$(cut -d: -f3 <<< "${roxora_shadow}")" == 0 ]] || fb_errors+=("roxora's password is not expired")
 	in_root id -nG roxora | grep -qw sudo || fb_errors+=("roxora is not in the sudo group")
+	in_root getent group render > /dev/null && { in_root id -nG roxora | grep -qw render || fb_errors+=("roxora is not in the render group (needed for the NPU)"); }
+	[[ "$(stat -c %U "${R}/home/roxora" 2> /dev/null)" == roxora ]] || fb_errors+=("/home/roxora is missing or not owned by roxora")
 fi
 grep -q '^ubuntu:' "${R}/etc/passwd" && fb_errors+=("a user named ubuntu exists")
 [[ ! -e "${R}/root/.not_logged_in_yet" ]] || fb_errors+=("/root/.not_logged_in_yet exists (Armbian first-login wizard)")
+in_root getcap /usr/bin/ping | grep -q cap_net_raw || fb_errors+=("/usr/bin/ping has lost its cap_net_raw file capability")
 compgen -G "${R}/etc/ssh/ssh_host_*" > /dev/null && fb_errors+=("SSH host keys are in the image (they must be created at the first boot)")
 grep -rqs -- '--autologin' "${R}/etc/systemd/system" && fb_errors+=("a getty autologin override exists")
 [[ "$(cat "${R}/etc/hostname")" == "${board}" ]] || fb_errors+=("hostname is '$(cat "${R}/etc/hostname")', expected '${board}'")
 if [[ ${#fb_errors[@]} -eq 0 ]]; then
-	pass "first boot: cloud-init seeded, no SSH host keys, user roxora with an expired password, root locked, no autologin, hostname ${board}"
+	pass "first boot: cloud-init seeded, no SSH host keys, ping capability set, user roxora with a home directory and an expired password, root locked, no autologin, hostname ${board}"
 else
 	fail "first boot: ${#fb_errors[@]} problems"
 	printf '%s\n' "${fb_errors[@]}" | detail

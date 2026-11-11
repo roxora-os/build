@@ -92,6 +92,10 @@ function extension_prepare_config__roxora() {
 		EXTRA_PACKAGES_IMAGE+=("${pkg}")
 		EXTRA_PACKAGES_IMAGE_REFS+=("extension_prepare_config__roxora:${BASH_SOURCE[0]}:${LINENO}")
 	done
+
+	# Armbian leaves /home out when it copies the root file system into the
+	# image; the default user's home directory is made at build time.
+	declare -g INCLUDE_HOME_DIR=yes
 }
 
 # Drop the distro-layer parts of the board support package before it is built,
@@ -209,11 +213,12 @@ function post_customize_image__roxora_cloud_init() {
 
 	# Default account: user "roxora", password "roxora", which must be changed
 	# at the first login (console and SSH). Groups are those Ubuntu gives its
-	# default user, where they exist. cloud-init is told not to add another
-	# user (users: [] in user-data).
+	# default user, plus video and render for the GPU and the NPU
+	# (/dev/accel/accel0 belongs to render), where they exist. cloud-init is
+	# told not to add another user (users: [] in user-data).
 	declare -a groups=()
 	declare group
-	for group in adm cdrom dip plugdev sudo; do
+	for group in adm cdrom dip plugdev sudo video render; do
 		chroot_sdcard_with_stdout getent group "${group}" > /dev/null && groups+=("${group}")
 	done
 	chroot_sdcard useradd --create-home --shell /bin/bash --groups "$(
@@ -321,6 +326,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	if [[ -f "${SDCARD}/usr/lib/systemd/system/motd-news.timer" ]]; then
 		chroot_sdcard systemctl --no-reload enable motd-news.timer
 	fi
+
+	# File capabilities (ping's cap_net_raw) do not survive Armbian's rootfs
+	# cache, and dpkg --verify does not see them. Run again the part of each
+	# package's postinst that sets them, the way dpkg runs it.
+	declare postinst pkg version
+	for postinst in "${SDCARD}"/var/lib/dpkg/info/*.postinst; do
+		grep -q setcap "${postinst}" || continue
+		pkg="$(basename "${postinst}" .postinst)"
+		version="$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' "${pkg}")"
+		display_alert "Roxora" "setting file capabilities again: ${pkg}" "info"
+		chroot_sdcard DEBIAN_FRONTEND=noninteractive "/var/lib/dpkg/info/${pkg}.postinst" configure "${version}"
+	done
 }
 
 # Installed packages built by Armbian that are not hardware layer.
