@@ -79,9 +79,8 @@ it is part of the image, not of the cloud-init seed. See cloud-init's
   full-upgrade`.
 - Nothing else is installed or upgraded from Armbian's repository. It is
   pinned (see [architecture.md](architecture.md#where-packages-come-from)).
-- Not every hardware package is published by Armbian for every board. In
-  November 2026, for example, the edge U-Boot of the CM5-IO is not in
-  Armbian's repository, so that package stays at the version in the image.
+- A hardware package that Armbian's repository does not carry for a board
+  stays at the version in the image.
 - The ROCK 4D Wi-Fi driver (AIC8800) is downloaded from Radxa's GitHub
   releases when the image is built and installed with DKMS. DKMS rebuilds it
   for each new kernel, but apt does not update the driver itself.
