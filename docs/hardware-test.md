@@ -538,6 +538,60 @@ needs a U-Boot on eMMC or SD that looks for `/boot` on NVMe. Record which
 device boots with the SD card removed and with it inserted; the result decides
 whether hwtool offers NVMe on this board.
 
+### D8. NPU and charsiu via hwtool
+
+Run this on the ROCK 4D after D3, on the edge kernel. It checks what hwtool
+reports about the NPU on both kernel branches and that it installs and
+removes charsiu. It does not download a model (B8 covers running charsiu).
+If charsiu is installed from B8, remove it first: `sudo apt remove charsiu`.
+
+    hwtool npu status                                       # record
+    hwtool --json npu status > npu-edge.json
+
+Pass: the verdict is "NPU ready for charsiu (sudo hwtool npu
+install-charsiu)"; `rocket` is listed with its module file and "loaded";
+two NPU nodes, `/soc/npu@27700000` and `/soc/npu@27708000`,
+`rockchip,rk3576-rknn-core`, status `okay`; `/dev/accel/accel0` with its
+mode and group; charsiu "not installed, 0.1.0 available from
+http://apt.armbian.com noble/noble-utils ...".
+
+    sudo hwtool npu install-charsiu --dry-run                # record
+    sudo hwtool npu install-charsiu                          # type yes
+    hwtool npu status
+
+Pass: the dry run shows one `Inst charsiu` line under "apt resolves" and
+nothing else installed or removed, and a note to use `charsiu pull`; after
+the install the status says "NPU ready; charsiu 0.1.0 is installed".
+
+Then the vendor branch, as in D3 (with `--keep-old`):
+
+    sudo hwtool kernel switch vendor --keep-old --dry-run   # record
+
+Pass: the dry run notes "charsiu 0.1.0 is installed. It needs the edge
+kernel's rocket driver and will not work on the vendor branch until you go
+back". Switch, reboot, then:
+
+    hwtool npu status                                       # record
+
+Pass: the verdict starts with "vendor kernel: charsiu needs the edge
+kernel's rocket driver"; `rknpu` is listed (built in or as a module) and
+`rocket` is not in this kernel; `sudo hwtool npu install-charsiu --dry-run`
+refuses with the same reason. Go back:
+
+    sudo hwtool kernel revert                               # type yes
+
+Reboot. `hwtool npu status` shows the edge verdict again. Finally:
+
+    sudo hwtool npu remove-charsiu --dry-run                 # record
+    sudo hwtool npu remove-charsiu                           # type yes
+
+Pass: the dry run shows one `Remv charsiu` line and notes that downloaded
+models stay in /opt/charsiu/models; afterwards `dpkg -s charsiu` says it is
+not installed.
+
+On the CM5-IO run only the first command and record its output: whether
+its device tree has enabled NPU nodes has not been checked.
+
 ## Report and marking
 
 Send the maintainer, per board: the release and image file name, board
