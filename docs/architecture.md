@@ -97,8 +97,8 @@ The image keeps both apt sources Armbian writes:
   because kernel, device tree, U-Boot and firmware updates come from it.
 
 The Armbian repository is pinned with
-[`roxora-armbian.pref`](../userpatches/roxora/apt/roxora-armbian.pref),
-installed as `/etc/apt/preferences.d/roxora-armbian.pref`:
+[`roxora-hardware.pref.in`](../userpatches/roxora/apt/roxora-hardware.pref.in),
+installed as `/etc/apt/preferences.d/roxora-hardware.pref`:
 
     Package: linux-image-* linux-dtb-* linux-headers-* linux-u-boot-* armbian-firmware*
     Pin: release o=Armbian
@@ -112,6 +112,14 @@ For each package apt uses the first record that matches it. The hardware
 packages get priority 500, the normal priority, so apt installs and upgrades
 them from Armbian. Every other package in the Armbian repository gets -1, so
 apt never installs or upgrades it from there.
+
+Which repository the hardware packages come from is set in one file,
+[`hardware-repo.conf`](../userpatches/roxora/hardware-repo.conf): today
+`apt.armbian.com`, with origin `Armbian`. The pin is rendered from that file,
+and `verify-image.sh` checks the image against it. Moving the hardware
+packages to another repository (for example one run by Roxora) is a change to
+that file only: the extension then writes that repository's source list and
+key in place of Armbian's.
 
 Why the pin is needed: besides its own packages, the Armbian repository
 publishes packages under the names of Ubuntu packages, with higher version

@@ -19,6 +19,15 @@
 
 declare -g ROXORA_DIR="${USERPATCHES_PATH}/roxora"
 
+# Where the hardware-layer packages come from (HW_REPO, HW_REPO_ORIGIN, ...).
+# shellcheck source=userpatches/roxora/hardware-repo.conf
+source "${ROXORA_DIR}/hardware-repo.conf"
+
+# The apt pin for the hardware repository, from its template.
+function roxora_render_pin() {
+	sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${ROXORA_DIR}/apt/roxora-hardware.pref.in"
+}
+
 # Print a list file without comments and blank lines.
 function roxora_list() {
 	sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "${ROXORA_DIR}/${1}"
@@ -130,16 +139,33 @@ function post_armbian_repo_customize_image__install_armbian-config() {
 	display_alert "Roxora" "not installing armbian-config" "info"
 }
 
-# Pin the Armbian repository. Its source list stays, because kernel, DTB,
+# Pin the hardware repository. Its source list stays, because kernel, DTB,
 # U-Boot and firmware updates come from it; everything else it publishes is
 # never installed or upgraded from there. The pin is in place from the rootfs
 # stage on: Armbian's noble-utils component publishes newer versions of Ubuntu
 # packages (base-files among them) that the rootfs upgrade would otherwise
 # take. The rootfs cache id includes this hook, so a rootfs built this way is
-# never mixed up with Armbian's own.
+# never mixed up with Armbian's own. hardware-repo.conf says which repository
+# that is; with HW_REPO other than "armbian" its source list replaces
+# Armbian's in the image.
 function custom_apt_repo__roxora_pin_armbian() {
-	display_alert "Roxora" "pinning the Armbian repository (${CUSTOM_REPO_WHEN})" "info"
-	install -D -m 0644 "${ROXORA_DIR}/apt/roxora-armbian.pref" "${SDCARD}/etc/apt/preferences.d/roxora-armbian.pref"
+	display_alert "Roxora" "pinning the hardware repository ${HW_REPO_ORIGIN} (${CUSTOM_REPO_WHEN})" "info"
+	mkdir -p "${SDCARD}/etc/apt/preferences.d"
+	roxora_render_pin > "${SDCARD}/etc/apt/preferences.d/roxora-hardware.pref"
+
+	[[ "${HW_REPO}" == armbian ]] && return 0
+	[[ "${CUSTOM_REPO_WHEN}" == image* ]] || return 0
+	[[ -n "${HW_REPO_URI}" && -n "${HW_REPO_KEY}" ]] ||
+		exit_with_error "Roxora: HW_REPO=${HW_REPO} needs HW_REPO_URI and HW_REPO_KEY in hardware-repo.conf"
+	install -D -m 0644 "${ROXORA_DIR}/apt/${HW_REPO_KEY}" "${SDCARD}/usr/share/keyrings/${HW_REPO_KEY}"
+	cat > "${SDCARD}/etc/apt/sources.list.d/roxora-hardware.sources" <<- SOURCES
+		Types: deb
+		URIs: ${HW_REPO_URI}
+		Suites: ${HW_REPO_SUITES}
+		Components: ${HW_REPO_COMPONENTS}
+		Signed-By: /usr/share/keyrings/${HW_REPO_KEY}
+	SOURCES
+	rm -f "${SDCARD}"/etc/apt/sources.list.d/armbian.sources*
 }
 
 # Seed cloud-init for the first boot and create the default account.

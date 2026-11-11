@@ -147,7 +147,7 @@ creates are removed (`rootfs-remove.list`).
 | serial getty enabled on `ttyS0` at 1500000 baud (`distro-agnostic.sh`) | hardware | kept |
 | hostname set to the board name (`distro-agnostic.sh`) | hardware | kept |
 | `systemd-firstboot.service` masked | hardware | kept: it would prompt on the serial console at first boot; cloud-init does the first-boot setup |
-| `/etc/apt/sources.list.d/armbian.sources` with `main noble-utils noble-desktop` | hardware | kept, pinned (see architecture.md) |
+| `/etc/apt/sources.list.d/armbian.sources` with `main noble-utils noble-desktop` | hardware | kept, pinned; the repository is set in `userpatches/roxora/hardware-repo.conf` (see architecture.md) |
 | Audio device names for HDMI, DP and the ES8316 codec (`/etc/udev/rules.d/90-naming-audios.rules`, board config) | hardware | kept |
 | netplan `10-dhcp-all-interfaces.yaml`, `00-armbian.network.readme`, `networkd.conf.d/mac-duid.conf`, wait-online `--any` and `apt-daily-upgrade` drop-ins (net-systemd-networkd extension) | distro | removed; cloud-init writes the network configuration from the image's seed (DHCP on wired Ethernet), as on Ubuntu's server images |
 | `armbian-config.sources` (armbian-config extension) | distro | not created |

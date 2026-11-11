@@ -3,7 +3,7 @@
 `verify/verify-image.sh` compares the packages installed in a Roxora image
 with what Ubuntu itself installs. Every package that is not in the reference
 must match a hardware-layer pattern (first record of
-`userpatches/roxora/apt/roxora-armbian.pref`) or be listed with a reason in
+`userpatches/roxora/apt/roxora-hardware.pref.in`) or be listed with a reason in
 `allowlist`.
 
 | File | Source | Downloaded | SHA-256 |

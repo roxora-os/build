@@ -73,8 +73,13 @@ detail() { sed 's/^/      /'; }
 # List file without comments and blank lines.
 list() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
 
+# Where the hardware-layer packages come from (HW_REPO, HW_REPO_ORIGIN, ...).
+# shellcheck source=userpatches/roxora/hardware-repo.conf
+source "${LISTS}/hardware-repo.conf"
+expected_pin="$(sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${LISTS}/apt/roxora-hardware.pref.in")"
+
 # Hardware-layer package patterns, taken from the first record of the pin file.
-mapfile -t hw_patterns < <(awk '/^Package:/ { for (i = 2; i <= NF; i++) print $i; exit }' "${LISTS}/apt/roxora-armbian.pref")
+mapfile -t hw_patterns < <(awk '/^Package:/ { for (i = 2; i <= NF; i++) print $i; exit }' <<< "${expected_pin}")
 is_hw() {
 	local p
 	for p in "${hw_patterns[@]}"; do
@@ -138,15 +143,22 @@ fi
 
 # --- 2. apt pinning and upgrade origin --------------------------------------
 
-if cmp -s "${LISTS}/apt/roxora-armbian.pref" "${R}/etc/apt/preferences.d/roxora-armbian.pref"; then
-	pass "apt: Armbian pin file is installed unchanged"
+if cmp -s <(printf '%s\n' "${expected_pin}") "${R}/etc/apt/preferences.d/roxora-hardware.pref"; then
+	pass "apt: pin for the hardware repository (origin ${HW_REPO_ORIGIN}) is installed as rendered from userpatches/roxora/apt"
 else
-	fail "apt: /etc/apt/preferences.d/roxora-armbian.pref is missing or differs from userpatches/roxora/apt"
+	fail "apt: /etc/apt/preferences.d/roxora-hardware.pref is missing or differs from userpatches/roxora/apt/roxora-hardware.pref.in"
 fi
-if [[ -f "${R}/etc/apt/sources.list.d/armbian.sources" ]]; then
-	pass "apt: Armbian source list is present (needed for kernel updates)"
+if [[ "${HW_REPO}" == armbian ]]; then
+	hw_source=/etc/apt/sources.list.d/armbian.sources
 else
-	fail "apt: /etc/apt/sources.list.d/armbian.sources is missing"
+	hw_source=/etc/apt/sources.list.d/roxora-hardware.sources
+	[[ ! -e "${R}/etc/apt/sources.list.d/armbian.sources" ]] ||
+		fail "apt: armbian.sources is present although HW_REPO=${HW_REPO}"
+fi
+if grep -q "${HW_REPO_HOST}" "${R}${hw_source}" 2> /dev/null; then
+	pass "apt: hardware repository source ${hw_source} (${HW_REPO_HOST}) is present (needed for kernel updates)"
+else
+	fail "apt: ${hw_source} with ${HW_REPO_HOST} is missing"
 fi
 
 if [[ "${offline}" == no ]]; then
@@ -159,17 +171,18 @@ if [[ "${offline}" == no ]]; then
 	fi
 fi
 
-# Every package the Armbian repository offers: is its candidate from Armbian?
-mapfile -t armbian_pkgs < <(cat "${R}"/var/lib/apt/lists/*armbian*_Packages 2> /dev/null | awk '/^Package:/ { print $2 }' | sort -u)
+# Every package the hardware repository offers: is its candidate from there?
+mapfile -t armbian_pkgs < <(cat "${R}"/var/lib/apt/lists/"${HW_REPO_HOST}"_*_Packages 2> /dev/null | awk '/^Package:/ { print $2 }' | sort -u)
 if [[ ${#armbian_pkgs[@]} -eq 0 ]]; then
-	fail "apt: no Armbian package lists in the image"
+	fail "apt: no package lists from ${HW_REPO_HOST} in the image"
 else
 	in_root apt-cache policy "${armbian_pkgs[@]}" > "${work}/policy.txt" 2> /dev/null || true
 	# For each package, print "<name> <origin>" for its candidate version:
 	# "ubuntu" when an Ubuntu archive offers it (apt then downloads it from
 	# there: Armbian mirrors some Ubuntu packages at the same version),
-	# "armbian" when only Armbian does, "none" when there is no candidate.
-	awk '
+	# "armbian" when only the hardware repository does, "none" when there is
+	# no candidate.
+	awk -v hw="${HW_REPO_HOST}" '
 		function flush() {
 			if (pkg == "") return
 			if (cand == "(none)" || cand == "") o = "none"
@@ -183,7 +196,7 @@ else
 		/^ \*\*\* / { invers = ($2 == cand); next }
 		/^     [^ ]/ { invers = ($1 == cand); next }
 		/^        / && invers && /ubuntu\.com/ { ub = 1; next }
-		/^        / && invers && /armbian/ { ar = 1; next }
+		/^        / && invers && index($0, hw) { ar = 1; next }
 		END { flush() }
 	' "${work}/policy.txt" > "${work}/candidates.txt"
 	bad=()
@@ -193,9 +206,9 @@ else
 	done < "${work}/candidates.txt"
 	hw_from_armbian="$(awk '$2 == "armbian"' "${work}/candidates.txt" | wc -l)"
 	if [[ ${#bad[@]} -eq 0 ]]; then
-		pass "apt: of ${#armbian_pkgs[@]} packages in the Armbian repository, only the ${hw_from_armbian} hardware-layer ones have an Armbian candidate"
+		pass "apt: of ${#armbian_pkgs[@]} packages in ${HW_REPO_HOST}, only the ${hw_from_armbian} hardware-layer ones have their candidate there"
 	else
-		fail "apt: Armbian is the candidate for packages outside the hardware layer"
+		fail "apt: ${HW_REPO_HOST} is the candidate for packages outside the hardware layer"
 		printf '%s\n' "${bad[@]}" | detail
 	fi
 fi
@@ -214,11 +227,11 @@ in_root apt-get -s -o Debug::NoLocking=1 full-upgrade > "${work}/upgrade.txt" 2>
 bad=()
 while read -r p origin; do
 	is_hw "${p}" || bad+=("${p} (${origin})")
-done < <(awk '/^Inst / && /Armbian/ { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
+done < <(awk -v org="${HW_REPO_ORIGIN}:" '/^Inst / && index($0, "(") && index(substr($0, index($0, "(")), org) { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
 if [[ ${#bad[@]} -eq 0 ]]; then
-	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages and none outside the hardware layer from Armbian"
+	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages and none outside the hardware layer from ${HW_REPO_ORIGIN}"
 else
-	fail "apt: full-upgrade would install or upgrade Armbian distro-layer packages"
+	fail "apt: full-upgrade would install or upgrade distro-layer packages from ${HW_REPO_ORIGIN}"
 	printf '%s\n' "${bad[@]}" | detail
 fi
 
