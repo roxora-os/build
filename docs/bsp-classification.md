@@ -77,7 +77,7 @@ keeps Armbian's name and is never upgraded from Armbian's repository (see
 | `/usr/bin/armbian-install`, `/usr/lib/nand-sata-install`, `/usr/lib/armbian-install/exclude.txt` | Install to eMMC or NVMe; now only a shim that runs `armbian-config` | distro | `armbian-config` is not installed, so the shim cannot work |
 | `/usr/lib/armbian/armbian-common` | Shell library of the removed scripts | distro | Nothing kept uses it |
 | `/usr/share/armbian/armbian-user-icon.png`, `/usr/share/pixmaps/armbian-logo*` (5 files), `/usr/share/initramfs-tools/conf-hooks.d/armbian-plymouth` | Branding | distro | Branding |
-| `/etc/armbian-distribution-status`, `/etc/armbian.txt` | Release support table and build information for the login message and `armbian-config` | distro | Read only by removed tools |
+| `/etc/armbian-distribution-status`, `/etc/armbian.txt` | Release support table and build information for the login message and `armbian-config` | distro | Read only by removed tools. `armbian.txt` is written into the package after the extension runs, so it is deleted from the root filesystem instead |
 
 ### Maintainer scripts
 

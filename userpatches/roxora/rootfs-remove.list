@@ -8,7 +8,10 @@
 /etc/apt/sources.list.d/armbian-config.sources
 
 # image information and settings read only by removed Armbian tools
+# (/etc/armbian.txt is written into the BSP package after the extension's
+# hook runs, so it is removed here)
 /etc/armbian-image-release
+/etc/armbian.txt
 /etc/default/armbian-firstrun
 /etc/default/armbian-motd
 /etc/default/armbian-ramlog
