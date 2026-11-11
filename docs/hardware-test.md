@@ -69,7 +69,7 @@ Pass:
     ip -br addr
     resolvectl status | head -20
     ping -c 3 ports.ubuntu.com
-    ssh ubuntu@<board-ip>               # from the host, with the new password
+    ssh roxora@<board-ip>               # from the host, with the new password
 
 Pass: the wired interface has an IPv4 address from DHCP, the name resolves,
 three ping replies, the SSH login works.
