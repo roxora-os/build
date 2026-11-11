@@ -284,7 +284,7 @@ function roxora_dpkg_changed_files() {
 # that differs from dpkg's) and the apt archive cache directories are gone by
 # then. Fetch the packages those files come from while the repositories are
 # still reachable, and put the shipped files back at the very end.
-declare -g -a ROXORA_LATE_PACKAGES=("dpkg" "tzdata")
+declare -g -a ROXORA_LATE_PACKAGES=("dpkg" "libc-bin")
 declare -g ROXORA_LATE_DEBS=""
 
 function post_repo_customize_image__roxora_zz_fetch_late_packages() {

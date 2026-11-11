@@ -131,7 +131,7 @@ creates are removed (`rootfs-remove.list`).
 | `/etc/legal` deleted (`distro-agnostic.sh`) | distro | restored from base-files |
 | `kernel.printk` uncommented in `/etc/sysctl.conf` (`distro-agnostic.sh`) | distro | restored from procps |
 | rsyslog `xconsole` and `KLogPermitNonKernelFacility` lines commented out (`distro-agnostic.sh`) | distro | restored from rsyslog |
-| `/usr/bin/tzselect` text changed (`post-tweaks.sh`) | distro | restored from tzdata |
+| `/usr/bin/tzselect` text changed (`post-tweaks.sh`) | distro | restored from libc-bin |
 | `start-stop-daemon` left different from dpkg's after removing the build-time diversion (`post-tweaks.sh`) | distro | restored from dpkg |
 | root password `1234`, `/root/.not_logged_in_yet`, `/root/.bash_aliases`, root dotfiles from `/etc/skel` (`distro-agnostic.sh`) | distro | root locked as on Ubuntu, wizard trigger and aliases removed, dotfiles from base-files |
 | console autologin overrides for `getty@` and `serial-getty@` (`distro-agnostic.sh`) | distro | not created (`CONSOLE_AUTOLOGIN=no`) |
