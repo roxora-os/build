@@ -132,6 +132,10 @@ creates are removed (`rootfs-remove.list`).
 | `kernel.printk` uncommented in `/etc/sysctl.conf` (`distro-agnostic.sh`) | distro | restored from procps |
 | rsyslog `xconsole` and `KLogPermitNonKernelFacility` lines commented out (`distro-agnostic.sh`) | distro | restored from rsyslog |
 | `/usr/bin/tzselect` text changed (`post-tweaks.sh`) | distro | restored from libc-bin |
+| `PermitRootLogin yes` and `PubkeyAuthentication yes` in `/etc/ssh/sshd_config` (`distro-agnostic.sh`) | distro | restored from openssh-server's template `/usr/share/openssh/sshd_config` |
+| hosts line of `/etc/nsswitch.conf` rewritten (`distro-agnostic.sh`) | distro | restored from libc-bin's template `/usr/share/libc-bin/nsswitch.conf` |
+| execute bit removed from every `/etc/update-motd.d` script until the first-login wizard has run (`distro-agnostic.sh`) | distro | execute bit restored; Ubuntu ships them executable |
+| `tmpfs /tmp` added to `/etc/fstab` (`partitioning.sh`) | distro | line removed; Ubuntu keeps `/tmp` on the root filesystem |
 | `start-stop-daemon` left different from dpkg's after removing the build-time diversion (`post-tweaks.sh`) | distro | restored from dpkg |
 | root password `1234`, `/root/.not_logged_in_yet`, `/root/.bash_aliases`, root dotfiles from `/etc/skel` (`distro-agnostic.sh`) | distro | root locked as on Ubuntu, wizard trigger and aliases removed, dotfiles from base-files |
 | console autologin overrides for `getty@` and `serial-getty@` (`distro-agnostic.sh`) | distro | not created (`CONSOLE_AUTOLOGIN=no`) |
