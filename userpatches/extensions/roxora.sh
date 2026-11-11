@@ -42,6 +42,10 @@ eval "function post_family_tweaks_bsp__roxora_zz_list_$(sha256sum "${ROXORA_DIR}
 function extension_prepare_config__roxora() {
 	display_alert "Roxora" "${BOARD} ${BRANCH} ${RELEASE} ${ROXORA_VERSION:-dev}" "info"
 
+	if [[ ${#roxora_missing_overrides[@]} -gt 0 ]]; then
+		exit_with_error "Roxora: armbian/build no longer defines ${roxora_missing_overrides[*]}; review the armbian-config override"
+	fi
+
 	if ! awk -v b="${BOARD}" -v br="${BRANCH}" -v r="${RELEASE}" \
 		'!/^[[:space:]]*(#|$)/ && $1 == b && $2 == br && $3 == r { found = 1 } END { exit !found }' \
 		"${ROXORA_DIR}/boards.conf"; then
@@ -96,6 +100,11 @@ function post_family_tweaks_bsp__roxora_hardware_only() {
 	# The BSP maintainer scripts mix boot-related steps with distro defaults.
 	# Replace them with the boot-related steps only. These functions are
 	# rendered into the package after this hook returns.
+	declare fn
+	for fn in board_side_bsp_cli_preinst board_side_bsp_cli_postinst_base board_side_bsp_cli_postinst_finish board_side_bsp_cli_postrm; do
+		declare -F "${fn}" > /dev/null ||
+			exit_with_error "Roxora: armbian/build no longer defines ${fn}; review the BSP override"
+	done
 	function board_side_bsp_cli_preinst() {
 		# Keep Armbian's initramfs compression: it is part of the boot path
 		# (uInitrd is made by /etc/initramfs/post-update.d/99-uboot).
@@ -131,7 +140,14 @@ function post_family_tweaks_bsp__roxora_hardware_only() {
 # github.armbian.com/configng, whose origin is not "Armbian" and so escapes the
 # pin, and installs armbian-config from it. armbian-config is distro layer.
 # ENABLE_EXTENSIONS are sourced after that extension, so these definitions
-# replace its two hooks and nothing is added or installed.
+# replace its two hooks and nothing is added or installed. If armbian/build
+# renames them, these definitions would replace nothing, so record now whether
+# the originals exist; extension_prepare_config__roxora stops the build if not.
+roxora_missing_overrides=()
+for roxora_fn in custom_apt_repo__add_armbian-github-repo post_armbian_repo_customize_image__install_armbian-config; do
+	declare -F "${roxora_fn}" > /dev/null || roxora_missing_overrides+=("${roxora_fn}")
+done
+unset roxora_fn
 function custom_apt_repo__add_armbian-github-repo() {
 	display_alert "Roxora" "not adding the armbian-config repository" "info"
 }
