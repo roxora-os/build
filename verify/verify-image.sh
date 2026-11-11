@@ -396,7 +396,9 @@ else
 	[[ "$(cut -d: -f3 <<< "${roxora_shadow}")" == 0 ]] || fb_errors+=("roxora's password is not expired")
 	in_root id -nG roxora | grep -qw sudo || fb_errors+=("roxora is not in the sudo group")
 	in_root getent group render > /dev/null && { in_root id -nG roxora | grep -qw render || fb_errors+=("roxora is not in the render group (needed for the NPU)"); }
-	[[ "$(stat -c %U "${R}/home/roxora" 2> /dev/null)" == roxora ]] || fb_errors+=("/home/roxora is missing or not owned by roxora")
+	# Compare numeric ids: the host's user names are not the image's.
+	[[ -d "${R}/home/roxora" && "$(stat -c %u "${R}/home/roxora")" == "$(awk -F: '$1 == "roxora" { print $3 }' "${R}/etc/passwd")" ]] ||
+		fb_errors+=("/home/roxora is missing or not owned by roxora")
 fi
 grep -q '^ubuntu:' "${R}/etc/passwd" && fb_errors+=("a user named ubuntu exists")
 [[ ! -e "${R}/root/.not_logged_in_yet" ]] || fb_errors+=("/root/.not_logged_in_yet exists (Armbian first-login wizard)")
