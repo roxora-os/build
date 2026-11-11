@@ -383,6 +383,11 @@ function post_post_debootstrap_tweaks__roxora_restore_late() {
 
 	mapfile -t changed < <(roxora_dpkg_changed_files)
 	[[ ${#changed[@]} -eq 0 ]] || exit_with_error "Roxora: package files still differ from Ubuntu" "${changed[*]}"
+
+	# No SSH host keys in the image: every board would share them, and anyone
+	# could read the private keys from the download. cloud-init creates them
+	# at the first boot, as on Ubuntu's cloud images.
+	rm -f "${SDCARD}"/etc/ssh/ssh_host_*
 }
 
 # Armbian writes /etc/fstab while it partitions the image, after every other
