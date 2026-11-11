@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install shfmt
         run: |
           curl -fsSL -o /usr/local/bin/shfmt \

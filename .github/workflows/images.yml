@@ -20,6 +20,8 @@ jobs:
       include: ${{ steps.boards.outputs.include }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - id: boards
         name: Read boards.conf
         run: |
@@ -36,6 +38,12 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.matrix.outputs.include) }}
     env:
+      # Values from boards.conf and the caller reach the shell as variables,
+      # never pasted into the script text.
+      BOARD: ${{ matrix.board }}
+      BRANCH: ${{ matrix.branch }}
+      RELEASE: ${{ matrix.release }}
+      VERSION: ${{ inputs.version }}
       NAME: roxora-${{ matrix.board }}-${{ matrix.release }}-${{ matrix.branch }}-${{ inputs.version }}
     steps:
       - name: Free disk space
@@ -45,11 +53,13 @@ jobs:
           df -h /
 
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Build
         run: |
-          ./build.sh BOARD=${{ matrix.board }} BRANCH=${{ matrix.branch }} RELEASE=${{ matrix.release }} \
-            VERSION=${{ inputs.version }} PREFER_DOCKER=no
+          ./build.sh "BOARD=${BOARD}" "BRANCH=${BRANCH}" "RELEASE=${RELEASE}" \
+            "VERSION=${VERSION}" PREFER_DOCKER=no
           ls -la output/
           df -h /
 
@@ -57,7 +67,7 @@ jobs:
         # Boards whose U-Boot package carries an SPI NOR image (the ROCK 4D)
         # get it as a separate file, from the same build as the image.
         run: |
-          deb="$(find cache/armbian-build/output -name "linux-u-boot-${{ matrix.board }}-${{ matrix.branch }}_*.deb" | head -1)"
+          deb="$(find cache/armbian-build/output -name "linux-u-boot-${BOARD}-${BRANCH}_*.deb" | head -1)"
           [[ -n "${deb}" ]] || { echo "no U-Boot package found"; exit 1; }
           tmp="$(mktemp -d)"
           dpkg-deb -x "${deb}" "${tmp}"
@@ -67,7 +77,7 @@ jobs:
             (cd output && sha256sum "${NAME}-spi.img" > "${NAME}-spi.img.sha256")
             ls -la output/*-spi.img*
           else
-            echo "${{ matrix.board }} has no SPI bootloader image"
+            echo "${BOARD} has no SPI bootloader image"
           fi
           rm -rf "${tmp}"
 
