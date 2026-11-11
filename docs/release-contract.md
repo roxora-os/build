@@ -1,0 +1,132 @@
+# Release contract
+
+This page describes what a Roxora release contains and how to read it. The
+website, the Raspberry Pi Imager repository file and the desktop imager all
+read releases through this contract, so a change here is a change for all of
+them.
+
+## Versions and tags
+
+- A version is `YYYY.MM.N`: the year and month of the release and a counter
+  that starts at 0 within that month. Example: `2026.11.0`, then `2026.11.1`.
+- The git tag is the version with a `v` in front: `v2026.11.0`.
+- Pushing a tag of that form to `roxora-os/build` starts `release.yml`, which
+  builds every line of `boards.conf`, verifies each image and publishes the
+  GitHub release.
+
+## Image files
+
+One image per line of `boards.conf`:
+
+    roxora-<board>-<release>-<branch>-<version>.img.xz
+
+Example: `roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz`.
+
+- `<board>` is the Armbian board name (`radxa-rock-4d`), `<release>` the
+  Ubuntu codename (`noble`), `<branch>` the Armbian kernel branch (`edge`).
+- The file is a whole-disk image compressed with xz. It is written as is to
+  an SD card, USB drive, eMMC or NVMe; the bootloader is inside it at 32 KiB.
+
+## Files in each release
+
+For every image:
+
+| File | Content |
+| --- | --- |
+| `roxora-...img.xz` | The image. |
+| `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. |
+| `roxora-...verify.txt` | The output of `verify/verify-image.sh` for that image. |
+
+Once per release:
+
+| File | Content |
+| --- | --- |
+| `SHA256SUMS` | `sha256sum` output for every other file in the release. |
+| `roxora-catalog.json` | The catalog described below. |
+
+## Pre-release and tested status
+
+- Every release is published as a GitHub **pre-release** until a maintainer
+  has run [hardware-test.md](hardware-test.md) on each of its boards and the
+  boards passed.
+- Each image carries a `status`:
+  - `hardware-tested`: hardware-test.md passed on that board with this
+    release's image.
+  - `ci-only`: the image built and passed `verify-image.sh` in CI; nobody has
+    booted it yet.
+- The release notes list the boards in each group. A release is marked as a
+  full release only when every image in it is `hardware-tested`.
+
+## Catalog
+
+`roxora-catalog.json` is UTF-8 JSON. Consumers must ignore fields they do not
+know, so fields can be added without a new schema number. Removing or changing
+the meaning of a field increments `schema`.
+
+    {
+      "schema": 1,
+      "release": {
+        "tag": "v2026.11.0",
+        "version": "2026.11.0",
+        "date": "2026-11-20",
+        "prerelease": true,
+        "url": "https://github.com/roxora-os/build/releases/tag/v2026.11.0",
+        "armbian_ref": "<full armbian/build commit SHA the images were built from>"
+      },
+      "images": [
+        {
+          "board": "radxa-rock-4d",
+          "board_name": "Radxa ROCK 4D",
+          "soc": "rk3576",
+          "release": "noble",
+          "ubuntu_version": "24.04",
+          "branch": "edge",
+          "kernel": "7.3.4",
+          "file": "roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz",
+          "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz",
+          "size": 412345678,
+          "sha256": "<sha256 of the .img.xz file>",
+          "extract_size": 2466250752,
+          "extract_sha256": "<sha256 of the decompressed .img>",
+          "status": "ci-only",
+          "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-2026.11.0.verify.txt"
+        }
+      ]
+    }
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schema` | integer | Catalog format version, currently 1. |
+| `release.tag` | string | Git tag. |
+| `release.version` | string | Version, tag without `v`. |
+| `release.date` | string | Release date, `YYYY-MM-DD`, UTC. |
+| `release.prerelease` | boolean | True while any image is `ci-only`. |
+| `release.url` | string | GitHub release page. |
+| `release.armbian_ref` | string | `armbian.ref` at the tagged commit. |
+| `images[].board` | string | Armbian board name, first column of `boards.conf`. |
+| `images[].board_name` | string | Board name for people, `NAME` column of `boards.conf`. |
+| `images[].soc` | string | SoC, `SOC` column of `boards.conf`. |
+| `images[].release` | string | Ubuntu codename. |
+| `images[].ubuntu_version` | string | Ubuntu version number. |
+| `images[].branch` | string | Armbian kernel branch. |
+| `images[].kernel` | string | Kernel version in the image (`uname -r` without the branch suffix). |
+| `images[].file` | string | Image file name. |
+| `images[].url` | string | Download URL of the image. |
+| `images[].size` | integer | Size of the `.img.xz` in bytes. |
+| `images[].sha256` | string | SHA-256 of the `.img.xz`, lower-case hex. |
+| `images[].extract_size` | integer | Size of the decompressed image in bytes. |
+| `images[].extract_sha256` | string | SHA-256 of the decompressed image. |
+| `images[].status` | string | `hardware-tested` or `ci-only`. |
+| `images[].verify_url` | string | Download URL of the verify output. |
+
+The newest release's catalog is always at
+
+    https://github.com/roxora-os/build/releases/latest/download/roxora-catalog.json
+
+when the newest release is a full release. While every release is a
+pre-release, read the list of releases from the GitHub API
+(`GET /repos/roxora-os/build/releases`) and take `roxora-catalog.json` from
+each release's assets.
+
+[sample-catalog.json](sample-catalog.json) is a sample in this format with
+made-up sizes and checksums, for testing consumers before real releases exist.
