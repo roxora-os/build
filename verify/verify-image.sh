@@ -116,7 +116,8 @@ in_root() { chroot "${R}" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C "$@
 # shellcheck source=/dev/null
 # shellcheck disable=SC2153 # BOARD comes from the sourced file
 board="$(. "${R}/etc/armbian-release" && echo "${BOARD}")"
-kpkg="$(in_root dpkg-query -W -f '${Package}\n' 'linux-image-*' | head -1)"
+# The installed kernel package (not a name it Provides, such as linux-image-armbian).
+kpkg="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' 'linux-image-*' | awk '$1 ~ /^ii/ && $2 ~ /^linux-image-[^-]+-[^-]+$/ && $2 != "linux-image-armbian" { print $2; exit }')"
 branch="$(sed -E 's/^linux-image-([^-]+)-.*/\1/' <<< "${kpkg}")"
 echo "Image: board ${board}, kernel package ${kpkg} (branch ${branch})"
 echo
