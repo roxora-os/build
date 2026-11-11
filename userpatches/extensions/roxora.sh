@@ -174,14 +174,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	# Any other Armbian-built package outside the hardware layer is replaced by
 	# Ubuntu's version, which the pin makes the candidate. A rootfs from a cache
 	# built without the pin carries Armbian's base-files, for example.
-	declare pkg candidate
-	while read -r pkg; do
-		candidate="$(chroot_sdcard_with_stdout apt-cache policy "${pkg}" | awk '/Candidate:/ { print $2 }')"
-		[[ -n "${candidate}" && "${candidate}" != "(none)" ]] ||
-			exit_with_error "Roxora: ${pkg} comes from Armbian and has no Ubuntu version to replace it"
-		display_alert "Roxora" "replacing Armbian's ${pkg} with ${candidate}" "info"
-		chroot_sdcard_apt_get install --allow-downgrades "${pkg}=${candidate}"
-	done < <(roxora_armbian_distro_packages)
+	# apt picks the candidate by priority before version: Ubuntu's version
+	# (500) wins over the installed Armbian one (100 from dpkg status, -1
+	# from the pinned repository), so installing the package name downgrades.
+	declare -a armbian_pkgs=()
+	mapfile -t armbian_pkgs < <(roxora_armbian_distro_packages)
+	if [[ ${#armbian_pkgs[@]} -gt 0 ]]; then
+		display_alert "Roxora" "replacing Armbian builds of ${armbian_pkgs[*]} with Ubuntu's" "info"
+		chroot_sdcard_apt_get install --allow-downgrades "${armbian_pkgs[@]}"
+		mapfile -t armbian_pkgs < <(roxora_armbian_distro_packages)
+		[[ ${#armbian_pkgs[@]} -eq 0 ]] ||
+			exit_with_error "Roxora: no Ubuntu version replaces these Armbian packages" "${armbian_pkgs[*]}"
+	fi
 
 	# root's dotfiles as base-files installs them.
 	install -m 0644 "${SDCARD}/usr/share/base-files/dot.bashrc" "${SDCARD}/root/.bashrc"
@@ -286,8 +290,11 @@ declare -g ROXORA_LATE_DEBS=""
 function post_repo_customize_image__roxora_zz_fetch_late_packages() {
 	ROXORA_LATE_DEBS="$(mktemp -d)"
 	add_cleanup_handler roxora_cleanup_late_debs
-	mkdir -p "${SDCARD}/tmp/roxora-late"
-	chroot_sdcard "cd /tmp/roxora-late && apt-get -qq download ${ROXORA_LATE_PACKAGES[*]}"
+	# Through Armbian's apt wrapper: it mounts the package lists the chroot
+	# otherwise does not have.
+	mkdir -p "${SDCARD}/tmp/roxora-late/partial"
+	chroot_sdcard_apt_get --download-only -o Dir::Cache::archives=/tmp/roxora-late \
+		install --reinstall "${ROXORA_LATE_PACKAGES[@]}"
 	mv "${SDCARD}"/tmp/roxora-late/*.deb "${ROXORA_LATE_DEBS}/"
 	rm -rf "${SDCARD}/tmp/roxora-late"
 }
