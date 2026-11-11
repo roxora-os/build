@@ -1,0 +1,82 @@
+# Builds and verifies every image in boards.conf. Called by build.yml and
+# release.yml.
+name: Images
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version string for the image file names
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      include: ${{ steps.boards.outputs.include }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: boards
+        name: Read boards.conf
+        run: |
+          include="$(awk '!/^[[:space:]]*(#|$)/ { printf "%s{\"board\":\"%s\",\"branch\":\"%s\",\"release\":\"%s\"}", (n++ ? "," : ""), $1, $2, $3 }' boards.conf)"
+          echo "include=[${include}]" >> "$GITHUB_OUTPUT"
+          echo "[${include}]"
+
+  image:
+    needs: matrix
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.matrix.outputs.include) }}
+    env:
+      NAME: roxora-${{ matrix.board }}-${{ matrix.release }}-${{ matrix.branch }}-${{ inputs.version }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          ./build.sh BOARD=${{ matrix.board }} BRANCH=${{ matrix.branch }} RELEASE=${{ matrix.release }} \
+            VERSION=${{ inputs.version }} PREFER_DOCKER=no
+          ls -la output/
+          df -h /
+
+      - name: Verify
+        run: |
+          set -o pipefail
+          sudo verify/verify-image.sh "output/${NAME}.img.xz" | tee "output/${NAME}.verify.txt"
+
+      - name: Image details
+        if: always()
+        run: |
+          xz -l --robot "output/${NAME}.img.xz" | awk '$1 == "totals" { print $5 }' > "output/${NAME}.extract_size" || true
+          xz -dc "output/${NAME}.img.xz" | sha256sum | cut -d' ' -f1 > "output/${NAME}.extract_sha256" || true
+          grep -o 'for kernel [^;]*' "output/${NAME}.verify.txt" | head -1 | sed 's/for kernel //' > "output/${NAME}.kernel" || true
+          cat output/*.extract_size output/*.kernel || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ env.NAME }}
+          path: |
+            output/${{ env.NAME }}.*
+          if-no-files-found: error
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ env.NAME }}
+          path: cache/armbian-build/output/logs/

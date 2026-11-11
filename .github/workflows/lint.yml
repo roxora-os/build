@@ -1,0 +1,25 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shfmt
+        run: |
+          curl -fsSL -o /usr/local/bin/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
+          chmod +x /usr/local/bin/shfmt
+          shellcheck --version
+          shfmt --version
+      - name: shellcheck
+        run: shellcheck -x build.sh verify/*.sh userpatches/extensions/*.sh
+      - name: shfmt
+        run: shfmt -d -ci -sr build.sh verify/*.sh userpatches/extensions/*.sh

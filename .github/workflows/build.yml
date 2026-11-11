@@ -1,0 +1,22 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - build.sh
+      - armbian.ref
+      - boards.conf
+      - userpatches/**
+      - verify/**
+      - .github/workflows/build.yml
+      - .github/workflows/images.yml
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    uses: ./.github/workflows/images.yml
+    with:
+      version: ci.${{ github.run_number }}
