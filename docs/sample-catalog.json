@@ -1,5 +1,5 @@
 {
-  "_sample": "SAMPLE DATA. Sizes and checksums are made up; the release does not exist. See docs/release-contract.md.",
+  "_sample": "SAMPLE DATA. Sizes and checksums are made up and do not match any published release. See docs/release-contract.md.",
   "schema": 1,
   "release": {
     "tag": "v2026.11.0",

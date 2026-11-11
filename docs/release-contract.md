@@ -103,7 +103,7 @@ the meaning of a field increments `schema`.
 | `release.tag` | string | Git tag. |
 | `release.version` | string | Version, tag without `v`. |
 | `release.date` | string | Release date, `YYYY-MM-DD`, UTC. |
-| `release.prerelease` | boolean | True while any image is `ci-only`. |
+| `release.prerelease` | boolean | True while any image is `ci-only`, and until the maintainer marks the release as a full release. |
 | `release.url` | string | GitHub release page. |
 | `release.armbian_ref` | string | `armbian.ref` at the tagged commit. |
 | `images[].board` | string | Armbian board name, first column of `boards.conf`. |

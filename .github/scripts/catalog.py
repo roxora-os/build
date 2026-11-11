@@ -136,6 +136,11 @@ def notes(args):
         c["images"][0]["ubuntu_version"], c["images"][0]["release"],
         c["images"][0]["branch"], c["images"][0]["kernel"]) if c["images"] else "")
     out.append("")
+    spi = [i for i in c["images"] if i.get("spi")]
+    if spi:
+        out.append("SPI bootloader (written to the board's SPI flash, not to the card):")
+        out += [f"- {i['board_name']}: {i['spi']['file']}" for i in spi]
+    out.append("")
     out.append("Check a download with `sha256sum -c <file>.sha256`. The verify output of each image is attached as <file>.verify.txt.")
     if r["prerelease"]:
         out.append("")

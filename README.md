@@ -12,9 +12,11 @@ Website: https://roxora-os.github.io
 
 ## Status
 
-Early. Images are built and checked in CI only; none has been tested on a
-board yet, and there are no releases to download. Every image stays a
-pre-release until it passes the [hardware test](docs/hardware-test.md).
+Early. Pre-releases are published on the
+[releases page](https://github.com/roxora-os/build/releases). Their images
+are built and checked in CI; none has been tested on a board yet. A release
+stays a pre-release until its images pass the
+[hardware test](docs/hardware-test.md).
 
 ## Supported boards
 
