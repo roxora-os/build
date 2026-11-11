@@ -202,7 +202,7 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	# packages they belong to are reinstalled with --force-confmiss so that
 	# deleted conffiles come back as shipped.
 	declare -a changed=() packages=()
-	mapfile -t changed < <(roxora_dpkg_changed_files)
+	mapfile -t changed < <(roxora_dpkg_changed_files early)
 	if [[ ${#changed[@]} -gt 0 ]]; then
 		display_alert "Roxora" "restoring ${#changed[@]} changed package files" "info"
 		for path in "${changed[@]}"; do
@@ -213,7 +213,7 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 		chroot_sdcard_apt_get -o Dpkg::Options::=--force-confmiss -o Dpkg::Options::=--force-confnew \
 			install --reinstall "${packages[@]}"
 	fi
-	mapfile -t changed < <(roxora_dpkg_changed_files)
+	mapfile -t changed < <(roxora_dpkg_changed_files early)
 	[[ ${#changed[@]} -eq 0 ]] || exit_with_error "Roxora: package files still differ from Ubuntu" "${changed[*]}"
 
 	# Armbian seeds debconf so that unattended-upgrades does not turn on
@@ -245,11 +245,22 @@ function roxora_apt_cache_dirs() {
 	chroot "${SDCARD}" chown _apt:root /var/cache/apt/archives/partial
 }
 
+# The image's apt list directory as apt ships it (Armbian copies the lists in
+# from the host cache).
+function roxora_apt_lists_dir() {
+	install -d -m 0755 "${SDCARD}/var/lib/apt/lists"
+	install -d -m 0700 "${SDCARD}/var/lib/apt/lists/partial"
+	chroot "${SDCARD}" chown _apt:root /var/lib/apt/lists/partial
+}
+
 # Package files that differ from what the package shipped, minus hardware-layer
 # packages and the files Roxora changes on purpose (keep-modified.list).
+# With "early", also skip /var/lib/apt/lists: during the build Armbian mounts
+# the host's apt list cache there, and the image gets its own copy later.
 function roxora_dpkg_changed_files() {
 	declare -a keep=()
 	mapfile -t keep < <(roxora_list keep-modified.list)
+	[[ "${1:-}" == early ]] && keep+=("/var/lib/apt/lists" "/var/lib/apt/lists/*")
 	chroot_sdcard_with_stdout dpkg --verify 2> /dev/null |
 		awk '{ print $NF }' | sort -u | while read -r path; do
 		declare owner
@@ -290,6 +301,7 @@ function post_post_debootstrap_tweaks__roxora_restore_late() {
 	display_alert "Roxora" "restoring files changed after customization" "info"
 
 	roxora_apt_cache_dirs
+	roxora_apt_lists_dir
 
 	declare -a changed=()
 	mapfile -t changed < <(roxora_dpkg_changed_files)
