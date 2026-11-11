@@ -1,0 +1,47 @@
+# Files Armbian's build writes into the root filesystem outside any package,
+# removed by the roxora extension after installation. One path or glob per
+# line. docs/bsp-classification.md explains each one. verify/verify-image.sh
+# checks that none of them exist in the image.
+
+# apt: emptied Ubuntu Pro hook and the armbian-config repository
+/etc/apt/apt.conf.d/20apt-esm-hook.conf
+/etc/apt/sources.list.d/armbian-config.sources
+
+# image information and settings read only by removed Armbian tools
+/etc/armbian-image-release
+/etc/default/armbian-firstrun
+/etc/default/armbian-motd
+/etc/default/armbian-ramlog
+/etc/default/armbian-tuning-profile
+/etc/default/armbian-zram-config
+/etc/default/cpufrequtils
+/etc/default/rng-tools
+
+# first-login wizard trigger and Armbian shell aliases for root
+/root/.not_logged_in_yet
+/root/.bash_aliases
+/root/.desktop_autologin
+
+# rc.local compatibility script
+/etc/rc.local
+
+# serial console added to securetty (not used by Ubuntu's PAM setup)
+/etc/securetty
+
+# dynamic motd link from the BSP postinst
+/etc/motd
+
+# boot splash bitmap (Armbian logo; the boot script does not show it)
+/boot/boot.bmp
+
+# networking set up by Armbian's systemd-networkd extension; cloud-init's
+# network configuration replaces it
+/etc/netplan/10-dhcp-all-interfaces.yaml
+/etc/systemd/network/00-armbian.network.readme
+/etc/systemd/networkd.conf.d/mac-duid.conf
+/etc/systemd/system/systemd-networkd-wait-online.service.d/armbian-any-interface.conf
+/etc/systemd/system/apt-daily-upgrade.service.d/armbian-exec-correct-service.conf
+
+# console autologin (also disabled with CONSOLE_AUTOLOGIN=no)
+/etc/systemd/system/getty@.service.d/override.conf
+/etc/systemd/system/serial-getty@.service.d/override.conf

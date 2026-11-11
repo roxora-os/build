@@ -1,0 +1,127 @@
+# Paths removed from the Armbian BSP package (armbian-bsp-cli-<board>-<branch>)
+# before it is built, so they are never installed. One path or glob per line,
+# relative to the package root. docs/bsp-classification.md explains each one.
+# verify/verify-image.sh checks that none of them exist in the image.
+
+# apt customisation: no recommends, no translations, gzip indexes, update hook
+/etc/apt/apt.conf.d/02-armbian-compress-indexes
+/etc/apt/apt.conf.d/02-armbian-postupdate
+/etc/apt/apt.conf.d/71-armbian-no-recommends
+/etc/apt/apt.conf.d/81-armbian-no-languages
+/usr/lib/armbian/armbian-apt-updates
+
+# cron jobs: featured feed, ramlog, battery check, log truncation, update check
+/etc/cron.daily/armbian-featured
+/etc/cron.daily/armbian-ram-logging
+/etc/cron.d/armbian-check-battery
+/etc/cron.d/armbian-truncate-logs
+/etc/cron.d/armbian-updates
+
+# defaults for removed services
+/etc/default/armbian-firstrun.dpkg-dist
+/etc/default/armbian-motd.dpkg-dist
+/etc/default/armbian-ramlog.dpkg-dist
+/etc/default/armbian-zram-config.dpkg-dist
+
+# NetworkManager overrides (Wi-Fi MAC randomisation and power save); NetworkManager is not in minimal images
+/etc/NetworkManager/conf.d/zz-10-override-wifi-random-mac-disable.conf
+/etc/NetworkManager/conf.d/zz-20-override-wifi-powersave-disable.conf
+
+# login scripts and shell aliases
+/etc/profile.d/armbian-activate-profile-sync-daemon.sh
+/etc/profile.d/armbian-check-first-login-reboot.sh
+/etc/profile.d/armbian-check-first-login.sh
+/etc/profile.d/armbian-lang.sh
+/etc/skel/.bash_aliases
+
+# logrotate replaced by a ramlog-aware unit
+/etc/systemd/system/logrotate.service
+
+# message of the day
+/etc/update-motd.d/00-clear
+/etc/update-motd.d/10-armbian-header
+/etc/update-motd.d/15-ap-info
+/etc/update-motd.d/20-ip-info
+/etc/update-motd.d/25-containers-info
+/etc/update-motd.d/30-armbian-sysinfo
+/etc/update-motd.d/35-armbian-tips
+/etc/update-motd.d/41-commands
+/etc/update-motd.d/97-armbian-luks-rekey
+/etc/update-motd.d/98-armbian-autoreboot-warn
+/etc/update-motd.d/99-blank
+
+# X11 defaults; no X server in minimal images
+/etc/X11/xorg.conf.d/01-armbian-defaults.conf
+
+# Armbian services: first run, first login, autologin removal, hardware monitor,
+# tuning, LUKS re-key, ramlog, filesystem resize, zram
+/lib/systemd/system/armbian-disable-autologin.service
+/lib/systemd/system/armbian-disable-autologin.timer
+/lib/systemd/system/armbian-firstrun.service
+/lib/systemd/system/armbian-hardware-monitor.service
+/lib/systemd/system/armbian-hardware-optimize.service
+/lib/systemd/system/armbian-luks-rekey.service
+/lib/systemd/system/armbian-ramlog.service
+/lib/systemd/system/armbian-resize-filesystem.service
+/lib/systemd/system/armbian-zram-config.service
+
+# systemd drop-ins changing stock units
+/lib/systemd/system/getty@tty1.service.d
+/lib/systemd/system/serial-getty@.service.d
+/lib/systemd/system/systemd-journald.service.d
+/lib/systemd/system/systemd-modules-load.service.d
+
+# tools: debug upload, monitor, upgrade, installer shim (needs armbian-config), dd backup
+/usr/bin/armbian-debug
+/usr/bin/armbianmonitor
+/usr/bin/armbian-upgrade
+/usr/bin/armbian-install
+/usr/lib/nand-sata-install
+/usr/lib/armbian-install
+/usr/sbin/ddbr
+
+# scripts behind the removed services and tools
+/usr/lib/armbian/armbian-allwinner-battery
+/usr/lib/armbian/armbian-audio-config
+/usr/lib/armbian/armbian-check-battery-shutdown
+/usr/lib/armbian/armbian-common
+/usr/lib/armbian/armbian-firstlogin
+/usr/lib/armbian/armbian-firstrun
+/usr/lib/armbian/armbian-hardware-monitor
+/usr/lib/armbian/armbian-hardware-optimization
+/usr/lib/armbian/armbian-luks-rekey
+/usr/lib/armbian/armbian-ramlog
+/usr/lib/armbian/armbian-resize-filesystem
+/usr/lib/armbian/armbian-truncate-logs
+/usr/lib/armbian/armbian-zram-config
+
+# sysctl defaults that duplicate the distribution's
+/usr/lib/sysctl.d/55-bsp-default.conf
+
+# profile-sync-daemon overrides
+/usr/lib/systemd/user/psd-resync.service.d/armbian-not-root.conf
+/usr/lib/systemd/user/psd-resync.timer.d/armbian-not-root.conf
+/usr/lib/systemd/user/psd.service.d/armbian-not-root.conf
+
+# hibernation image size; sleep states are not used
+/usr/lib/tmpfiles.d/armbian-hibernation.conf
+
+# branding
+/usr/share/armbian/armbian-user-icon.png
+/usr/share/initramfs-tools/conf-hooks.d/armbian-plymouth
+/usr/share/pixmaps/armbian-logo-text-dark.png
+/usr/share/pixmaps/armbian-logo-text-dark.svg
+/usr/share/pixmaps/armbian-logo-text.png
+/usr/share/pixmaps/armbian-logo-text.svg
+/usr/share/pixmaps/armbian-logo.svg
+
+# polkit rules granting extra rights to plugdev/netdev users
+/var/lib/polkit-1/localauthority/50-local.d/backlight.pkla
+/var/lib/polkit-1/localauthority/50-local.d/networkmanager.pkla
+/var/lib/polkit-1/localauthority/50-local.d/plugdev.pkla
+/var/lib/polkit-1/localauthority/50-local.d/power.pkla
+/var/lib/polkit-1/localauthority/50-local.d/printing.pkla
+
+# motd and armbian-config data
+/etc/armbian-distribution-status
+/etc/armbian.txt

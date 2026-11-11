@@ -1,0 +1,7 @@
+# Files of Ubuntu packages that Roxora leaves changed on purpose. Everything
+# else that dpkg --verify reports is restored by the roxora extension and
+# rejected by verify/verify-image.sh. One path or glob per line.
+
+# initramfs compression (gzip) and RESUME=none, set by the board support
+# package for the U-Boot boot path (uInitrd); see docs/bsp-classification.md
+/etc/initramfs-tools/initramfs.conf

@@ -1,0 +1,11 @@
+#cloud-config
+# Default first-boot setup, the same as Ubuntu's preinstalled server images:
+# the default user is "ubuntu" with the password "ubuntu", which must be
+# changed at the first login.
+chpasswd:
+  expire: true
+  users:
+    - name: ubuntu
+      password: ubuntu
+      type: text
+ssh_pwauth: true
