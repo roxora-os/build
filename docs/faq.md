@@ -18,15 +18,10 @@ many boards.
 
 ## Why not Armbian's own images?
 
-Armbian's images are a good choice if you want Armbian. For the same board
-and kernel branch their hardware support is the same as Roxora's, because
-Roxora uses it. On top of it they put
-Armbian's own userland: a first-login wizard, `armbian-config`, Armbian's
-login message, logs in RAM and zram swap, changed apt settings, and Armbian's
-own `base-files` with Armbian's `/etc/os-release`. Roxora is for people who
-want the board to behave like any other Ubuntu system, configured and updated
-the Ubuntu way. [bsp-classification.md](bsp-classification.md) lists every
-difference.
+Armbian's images come with Armbian's own setup: a first-boot wizard, a
+configuration tool and its own defaults. Roxora is for people who want the
+system Ubuntu ships instead. Both use the same kernels and bootloaders. If you
+want Armbian's tools, use Armbian's images.
 
 ## Which kernel do the images use?
 
