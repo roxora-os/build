@@ -28,8 +28,8 @@ archive.
 Armbian's images contain two different things, and Roxora keeps only one of
 them.
 
-**Hardware layer: kept, from Armbian.** What the board needs to boot and to
-drive its hardware:
+The hardware layer is kept from Armbian. It is what the board needs to boot
+and to drive its hardware:
 
 - the kernel (`linux-image-*`) and its headers (`linux-headers-*`, installed
   only where a board needs DKMS),
@@ -41,8 +41,9 @@ drive its hardware:
   udev rules and module options for Wi-Fi, Ethernet adapters, video decoders,
   audio device names and LEDs, and the device tree overlay tool.
 
-**Distro layer: removed, or replaced with what Ubuntu ships.** Everything that
-changes how the system looks or behaves compared with stock Ubuntu: the
+The distro layer is removed, or replaced with what Ubuntu ships. It is
+everything that changes how the system looks or behaves compared with stock
+Ubuntu: the
 first-login wizard and `armbian-firstrun`, `armbian-config`, Armbian's login
 message, logs in RAM and zram swap, Armbian's apt settings, its replacement
 `base-files`, branding, and edits Armbian's build makes to files of Ubuntu

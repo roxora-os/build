@@ -37,14 +37,18 @@ runs without root.
 
 Add one line to [`boards.conf`](../boards.conf):
 
-    # BOARD          BRANCH  RELEASE  STATUS   SOC     NAME
-    radxa-rock-4d    edge    noble    ci-only  rk3576  Radxa ROCK 4D
+    # BOARD          BRANCH  RELEASE  STATUS   SOC     VENDOR  NAME
+    radxa-rock-4d    edge    noble    ci-only  rk3576  Radxa   Radxa ROCK 4D
 
 - `BOARD` is Armbian's board name (the file name without extension).
 - `BRANCH` is the Armbian kernel branch, `RELEASE` the Ubuntu codename.
 - `STATUS` is `ci-only` for a new board. It becomes `hardware-tested` only
   after [hardware-test.md](hardware-test.md) has passed on the board.
-- `SOC` is lower case (`rk3576`); `NAME` is the name people know the board by.
+- `SOC` is lower case (`rk3576`).
+- `VENDOR` is the board maker as people write it, one word (`Radxa`); the
+  imager and the website group boards by it.
+- `NAME` is the name people know the board by, with the vendor
+  (`Radxa ROCK 4D`); it is the rest of the line.
 
 `build.sh`, the extension, the CI matrix and the website all read this file.
 
@@ -76,15 +80,15 @@ can bring more. Look in the pinned armbian/build checkout for:
 
 Classify each new file or change the same way as bsp-classification.md:
 
-- **Hardware layer** (needed to boot or to drive the board's hardware): keep
+- Hardware layer (needed to boot or to drive the board's hardware): keep
   it, and add a row to the "Kept" table.
-- **Distro layer** (changes how Ubuntu looks or behaves): remove it. Paths in
+- Distro layer (changes how Ubuntu looks or behaves): remove it. Paths in
   the BSP package go to
   [`bsp-remove.list`](../userpatches/roxora/bsp-remove.list); files written
   into the root filesystem go to
   [`rootfs-remove.list`](../userpatches/roxora/rootfs-remove.list). Add a row
   to the "Removed" table with the reason.
-- **An Ubuntu package file the board changes on purpose** (rare): add it to
+- An Ubuntu package file the board changes on purpose (rare): add it to
   [`keep-modified.list`](../userpatches/roxora/keep-modified.list) with a
   comment, and explain it in bsp-classification.md. Otherwise the extension
   restores it and the build fails if it cannot.
@@ -141,6 +145,9 @@ kernel update when its driver is built with DKMS.
 Write down the board's boot order (which media the BootROM tries, and in what
 order) in hardware-test.md if it differs from the boards already there.
 
-Once the test passes, the board's `STATUS` in `boards.conf` changes to
-`hardware-tested` with the next release (see
-[release-contract.md](release-contract.md)).
+Every new release starts with all its images marked `ci-only`. When the test
+passes on a release's image, the maintainer runs the "Mark hardware-tested"
+workflow for that release and board, which updates the release's catalog and
+notes (see [release-contract.md](release-contract.md)). Set the board's
+`STATUS` in `boards.conf` to `hardware-tested` at the same time, so the Boards
+page shows it.

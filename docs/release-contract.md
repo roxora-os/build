@@ -48,7 +48,7 @@ Once per release:
 
 ## Pre-release and tested status
 
-- Every release is published as a GitHub **pre-release** until a maintainer
+- Every release is published as a GitHub pre-release until a maintainer
   has run [hardware-test.md](hardware-test.md) on each of its boards and the
   boards passed.
 - Each image carries a `status`:

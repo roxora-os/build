@@ -4,9 +4,9 @@ Roxora uses Armbian for the hardware layer only. This page lists everything
 Armbian's build puts into a minimal Ubuntu 24.04 image for the supported
 boards, says which layer it belongs to, and what Roxora does with it.
 
-- **Hardware layer**: needed to boot the board and drive its hardware, or
+- Hardware layer: needed to boot the board and drive its hardware, or
   part of the boot method. Kept.
-- **Distro layer**: changes how the system looks or behaves compared with
+- Distro layer: changes how the system looks or behaves compared with
   stock Ubuntu. Removed, or replaced with what Ubuntu ships.
 
 The lists the build actually uses are in
