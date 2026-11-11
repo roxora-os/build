@@ -1,8 +1,9 @@
 # Release contract
 
 This page describes what a Roxora release contains and how to read it. The
-website, the Raspberry Pi Imager repository file and the desktop imager all
-read releases through this contract, so a change here is a change for all of
+website, the Raspberry Pi Imager repository file and
+[Roxora Imager](https://github.com/roxora-os/imager) all read releases
+through this contract, so a change here is a change for all of
 them.
 
 ## Versions and tags
