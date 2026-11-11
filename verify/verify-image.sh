@@ -165,15 +165,25 @@ if [[ ${#armbian_pkgs[@]} -eq 0 ]]; then
 	fail "apt: no Armbian package lists in the image"
 else
 	in_root apt-cache policy "${armbian_pkgs[@]}" > "${work}/policy.txt" 2> /dev/null || true
-	# For each package, print "<name> <candidate-origin>", where the origin is
-	# "armbian" when one of the candidate's sources is the Armbian repository.
+	# For each package, print "<name> <origin>" for its candidate version:
+	# "ubuntu" when an Ubuntu archive offers it (apt then downloads it from
+	# there: Armbian mirrors some Ubuntu packages at the same version),
+	# "armbian" when only Armbian does, "none" when there is no candidate.
 	awk '
-		/^[^ ].*:$/ { flush(); pkg = substr($0, 1, length($0) - 1); cand = ""; invers = 0; org = "none"; next }
+		function flush() {
+			if (pkg == "") return
+			if (cand == "(none)" || cand == "") o = "none"
+			else if (ub) o = "ubuntu"
+			else if (ar) o = "armbian"
+			else o = "other"
+			print pkg, o
+		}
+		/^[^ ].*:$/ { flush(); pkg = substr($0, 1, length($0) - 1); cand = ""; invers = 0; ub = 0; ar = 0; next }
 		/^  Candidate:/ { cand = $2; next }
-		/^ [ *]{3}[^ ]/ { invers = ($(NF-1) == cand || $(NF-1) == "***" && $NF == cand); v = ($1 == "***") ? $2 : $1; invers = (v == cand); next }
-		invers && /armbian/ { org = "armbian"; next }
-		invers && /ubuntu|ports\.ubuntu/ { if (org != "armbian") org = "ubuntu"; next }
-		function flush() { if (pkg != "") print pkg, (cand == "(none)" ? "none" : org) }
+		/^ \*\*\* / { invers = ($2 == cand); next }
+		/^     [^ ]/ { invers = ($1 == cand); next }
+		/^        / && invers && /ubuntu\.com/ { ub = 1; next }
+		/^        / && invers && /armbian/ { ar = 1; next }
 		END { flush() }
 	' "${work}/policy.txt" > "${work}/candidates.txt"
 	bad=()
