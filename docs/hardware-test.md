@@ -310,12 +310,33 @@ Pass: the file is accepted ("matches the release") and both writes end with
 ## Part D: hwtool
 
 hwtool changes the boot configuration, the kernel packages, the bootloader
-and the eMMC or NVMe drive. Have a second SD card with the same image ready to
-recover, and nothing on the eMMC or NVMe you want to keep.
+and the eMMC or NVMe drive. Before you start:
 
-Install it on the board from the `debs` artifact (see What you need):
+- Have a second SD card with the same image ready, to start the board if
+  the first one stops booting.
+- Have nothing on the eMMC or NVMe you want to keep.
+- Run every command that changes something on the serial console, or over
+  SSH inside `tmux` (`sudo apt install tmux`, then `tmux`; after a dropped
+  connection, `tmux attach`). hwtool finishes a change even if the terminal
+  goes away, but you would lose what it prints.
+- Every change writes a log to `/var/log/hwtool/<time>.log`. Keep the logs
+  of every step; they go into the report.
+
+Install hwtool on the board from the `debs` artifact (see What you need):
 
     sudo apt install ./roxora-hwtool_<version>_arm64.deb
+
+Recovery used below:
+
+- Second SD card: Power off, swap the cards, power on. On the ROCK 4D the
+  SPI U-Boot starts the card; on the CM5-IO the boot ROM starts the eMMC first
+  when it holds a bootloader, so recovering the CM5-IO from SD needs an eMMC
+  without one (see the first step of D7).
+- Maskrom: Power off, hold the board's Maskrom button, connect its USB-C
+  port to the computer, release the button after two seconds (`lsusb` shows
+  `2207:...`). Then use Roxora Imager, Board storage over USB (Maskrom): C7
+  writes the release's SPI bootloader to the ROCK 4D, C6 writes the image to
+  the CM5-IO eMMC.
 
 ### D1. Information (no changes)
 
@@ -344,15 +365,16 @@ uses a user overlay that only adds a property to `/chosen`:
     };
     EOF
     sudo armbian-add-overlay roxora-test.dtso
-    sudo hwtool overlays disable roxora-test --dry-run
+    sudo hwtool overlays disable --dry-run -- roxora-test
     hwtool overlays list
 
 Reboot; the serial log shows `Applying user provided DT overlay
 roxora-test.dtbo`. Then:
 
     cat /proc/device-tree/chosen/roxora-hwtool-test        # prints ok
-    sudo hwtool overlays disable roxora-test               # type yes
+    sudo hwtool overlays disable -- roxora-test             # type yes
     ls /var/backups/hwtool/*/boot/armbianEnv.txt            # a backup exists
+    ls /var/log/hwtool/                                     # a log exists
 
 Reboot. Pass: `/proc/device-tree/chosen/roxora-hwtool-test` no longer exists
 and the board booted normally both times.
@@ -360,31 +382,70 @@ and the board booted normally both times.
 ### D3. Kernel branch switch and back
 
 The `vendor` branch is not a supported Roxora image yet; this only tests that
-hwtool can switch and return.
+hwtool can switch and return. The first switch keeps the edge kernel
+installed, so a vendor kernel that does not boot can be undone from the
+second SD card.
+
+    sudo hwtool kernel switch vendor --keep-old --dry-run
+    sudo hwtool kernel switch vendor --keep-old              # type yes
+    hwtool kernel status
+
+Check the dry run: an "apt resolves" block under the install step lists
+what apt installs and removes (only the edge U-Boot package may be removed),
+and a "Save ..." step for the edge U-Boot package. Reboot.
+
+If the board does not come back: start it from the second SD card, then
+mount the first card and point it back at the edge kernel (its packages are
+still installed):
+
+    sudo mount /dev/mmcblk1p1 /mnt          # the first card, in a USB reader or the slot
+    cd /mnt/boot
+    sudo ln -sfn vmlinuz-<edge version> Image
+    sudo ln -sfn dtb-<edge version> dtb
+    sudo ln -sfn uInitrd-<edge version> uInitrd
+    sudo cp /mnt/var/backups/hwtool/<time>/boot/armbianEnv.txt armbianEnv.txt
+    cd / && sudo umount /mnt
+
+(`<edge version>` is in the names of the files in `/mnt/boot`, for example
+`7.3.4-edge-rockchip64`; `<time>` is the newest directory in
+`/mnt/var/backups/hwtool`.) Record what happened and stop D3 there.
+
+If it boots, `uname -r` ends in `-vendor-rk35xx`. Then go back, this time
+removing the vendor packages:
+
+    sudo hwtool kernel revert --dry-run
+    sudo hwtool kernel revert                              # type yes
+
+Reboot. Then the full switch without `--keep-old`, which saves and removes
+the edge packages, and back:
 
     sudo hwtool kernel switch vendor --dry-run
     sudo hwtool kernel switch vendor                       # type yes
-    hwtool kernel status
     ls -l /var/lib/hwtool/packages/*/
 
-Reboot. `uname -r` ends in `-vendor-rk35xx`. Then:
+Reboot, check `uname -r`, then:
 
     sudo hwtool kernel revert                              # type yes
 
-Reboot. Pass: the dry run lists a "Save ..." step for each edge package,
-`/var/lib/hwtool/packages/<time>/` holds one `.deb` per saved package, the
-board boots both times with Ethernet working, `uname -r` ends in
-`-edge-rockchip64` after the revert, and on the ROCK 4D the Wi-Fi driver is
-built again (`dkms status`).
+Reboot. Pass: the board boots after every switch with Ethernet working;
+`uname -r` ends in `-vendor-rk35xx` after a switch and in `-edge-rockchip64`
+after a revert; `/var/lib/hwtool/packages/<time>/` holds one `.deb` per saved
+package; on the ROCK 4D the Wi-Fi driver is built again (`dkms status`).
 
 On the CM5-IO the Armbian repository has no `linux-u-boot-armsom-cm5-io-edge`,
-so the revert dry run says it installs the saved copy from
-`/var/lib/hwtool/packages/...`; after the revert `dpkg -s
-linux-u-boot-armsom-cm5-io-edge` shows the version the image shipped.
+so the revert dry run says "apt no longer offers this version; installing
+linux-u-boot-armsom-cm5-io-edge ... from /var/lib/hwtool/packages/..."; after
+the revert `dpkg -s linux-u-boot-armsom-cm5-io-edge` shows the version the
+image shipped.
 
-### D4. Rewrite the bootloader on the SD card
+### D4. Rewrite the bootloader on the boot device
 
-Use the device `hwtool info` shows for the SD card (usually `/dev/mmcblk1`):
+Use the device `hwtool info` shows for the SD card (usually `/dev/mmcblk1`).
+First keep a copy of what is there now:
+
+    sudo dd if=/dev/mmcblk1 of=sd-head.bin bs=1M count=16
+
+Then:
 
     sudo hwtool boot write-bootloader --target /dev/mmcblk1                    # must refuse
     sudo hwtool boot write-bootloader --target /dev/mmcblk1 --allow-booted-device --dry-run
@@ -392,24 +453,51 @@ Use the device `hwtool info` shows for the SD card (usually `/dev/mmcblk1`):
 
 Reboot. Pass: the first command refuses and names `--allow-booted-device`, the
 dry run shows one `dd` line writing `u-boot-rockchip.bin` at 32 KiB, and the
-board boots from the SD card afterwards.
+board boots afterwards.
+
+On the ROCK 4D the boot ROM never starts U-Boot from the SD card (it uses the
+one in SPI flash), so this only checks the write itself. On the CM5-IO it is
+the U-Boot that starts. If the CM5-IO does not boot, start it from the second
+SD card (with no bootable eMMC) and put the copy back on the first card:
+
+    sudo dd if=sd-head.bin of=/dev/<first card> bs=1M seek=0 count=16 conv=notrunc,fsync
 
 ### D5. SPI flash (ROCK 4D)
+
+First keep a copy of the SPI flash, and store it off the board as well:
+
+    sudo dd if=/dev/mtd0 of=spi-backup.bin
+    sha256sum spi-backup.bin
+
+Then:
 
     sudo hwtool boot write-bootloader --target spi --dry-run
     sudo hwtool boot write-bootloader --target spi
 
-Reboot with the SD card inserted. Pass: the dry run shows `flashcp -v -p
-.../u-boot-rockchip-spi.bin /dev/mtd0`, `flashcp` reports verifying, and the
-board starts from SPI U-Boot and then the card. On the CM5-IO the same command
-must refuse: its U-Boot package has no SPI writer.
+Reboot with the SD card inserted. Pass: the dry run's title and command name
+`/dev/mtd0` (`flashcp -v -p .../u-boot-rockchip-spi.bin /dev/mtd0`), `flashcp`
+reports verifying, and the board starts from SPI U-Boot and then the card.
+
+If it does not start: Maskrom, then Roxora Imager C7 writes the release's SPI
+bootloader. Or, if the board still boots Linux from some medium:
+`sudo flashcp -v spi-backup.bin /dev/mtd0`.
+
+On the CM5-IO the same command must refuse: its U-Boot package has no SPI
+writer.
 
 ### D6. Move the system to eMMC
+
+Keep a copy of the start of the eMMC (where a bootloader would be):
+
+    sudo dd if=/dev/mmcblk0 of=emmc-head.bin bs=1M count=16
+
+Then:
 
     sudo hwtool boot migrate --target /dev/mmcblk0 --dry-run
     sudo hwtool boot migrate --target /dev/mmcblk0          # type yes
 
-Power off, remove the SD card, power on. Then:
+Check in the dry run that "Check the copy can boot" comes before the U-Boot
+write. Power off, remove the SD card, power on. Then:
 
     findmnt /                     # /dev/mmcblk0p1
     cat /etc/fstab                # UUID of mmcblk0p1
@@ -417,19 +505,33 @@ Power off, remove the SD card, power on. Then:
     hwtool info                   # eMMC is the running system
 
 Pass: the board boots from the eMMC without the SD card, and the SD card
-still boots the old system when inserted again (on the ROCK 4D U-Boot boots
-the SD card first; on the CM5-IO the boot ROM prefers the eMMC, so remove it
-or blank it to boot the card).
+still holds the old system. On the ROCK 4D U-Boot (in SPI flash) starts the SD
+card before the eMMC, so the card boots again when inserted. On the CM5-IO the
+boot ROM prefers the eMMC; to boot the card again, blank the eMMC boot area as
+in D7.
 
 ### D7. Move the system to NVMe
+
+Blank the eMMC first, so the board does not start the D6 copy. On the
+system that is running now (the eMMC copy from D6), zero only the U-Boot
+area, 32 KiB to 16 MiB; the partition after it is left alone:
+
+    sudo dd if=/dev/zero of=/dev/mmcblk0 bs=512 seek=64 count=32704 conv=fsync
+
+Power off, insert the SD card, power on: with no U-Boot on the eMMC the
+CM5-IO's boot ROM goes on to the SD card, and the ROCK 4D starts the card as
+before. Check with `hwtool info` that the SD card is the running system, then
+remove the eMMC's partition table so U-Boot does not find the old copy there:
+
+    sudo wipefs -a /dev/mmcblk0
 
 ROCK 4D (U-Boot in SPI flash):
 
     sudo hwtool boot migrate --target /dev/nvme0n1 --write-spi --dry-run
     sudo hwtool boot migrate --target /dev/nvme0n1 --write-spi             # type yes
 
-Power off, remove the SD card (and anything bootable on the eMMC), power on.
-Pass: `findmnt /` shows `/dev/nvme0n1p1`.
+Power off, remove the SD card, power on. Pass: `findmnt /` shows
+`/dev/nvme0n1p1`.
 
 CM5-IO (no SPI writer): run the same without `--write-spi`. The board then
 needs a U-Boot on eMMC or SD that looks for `/boot` on NVMe. Record which
