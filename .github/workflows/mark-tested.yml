@@ -1,6 +1,7 @@
 # Run after docs/hardware-test.md has passed on a board with a release's image.
-# Updates the release's catalog and notes, and turns the pre-release into a
-# full release once every image in it is hardware-tested.
+# Updates the release's catalog and notes. The release stays a pre-release
+# unless every image in it is hardware-tested and full_release is ticked;
+# no full release is made before the maintainers agree to it.
 name: Mark hardware-tested
 
 on:
@@ -12,6 +13,10 @@ on:
       boards:
         description: Comma-separated boards that passed, for example radxa-rock-4d,armsom-cm5-io
         required: true
+      full_release:
+        description: Make it a full release if every image is hardware-tested
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,6 +28,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ inputs.tag }}
       BOARDS: ${{ inputs.boards }}
+      FULL: ${{ inputs.full_release }}
     steps:
       - uses: actions/checkout@v4
       - name: Update catalog and notes
@@ -30,7 +36,9 @@ jobs:
           mkdir work
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --pattern roxora-catalog.json --dir work
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --pattern SHA256SUMS --dir work
-          python3 .github/scripts/catalog.py mark --catalog work/roxora-catalog.json --tested "${BOARDS}" > roxora-catalog.json
+          full=()
+          [[ "${FULL}" == true ]] && full=(--full-release)
+          python3 .github/scripts/catalog.py mark --catalog work/roxora-catalog.json --tested "${BOARDS}" "${full[@]}" > roxora-catalog.json
           python3 .github/scripts/catalog.py notes --catalog roxora-catalog.json > notes.md
           grep -v ' roxora-catalog.json$' work/SHA256SUMS > SHA256SUMS
           sha256sum roxora-catalog.json >> SHA256SUMS

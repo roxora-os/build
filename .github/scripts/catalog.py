@@ -4,13 +4,15 @@
 """Write roxora-catalog.json and the release notes for a release.
 
     catalog.py make  --dir DIR --tag vYYYY.MM.N --boards boards.conf --ref armbian.ref
-    catalog.py mark  --catalog roxora-catalog.json --tested BOARD[,BOARD...]
+    catalog.py mark  --catalog roxora-catalog.json --tested BOARD[,BOARD...] [--full-release]
     catalog.py notes --catalog roxora-catalog.json
 
 "make" reads the files images.yml leaves next to each image in DIR
 (<name>.img.xz, .img.xz.sha256, .verify.txt, .extract_size, .extract_sha256,
 .kernel) and prints the catalog described in docs/release-contract.md.
 "mark" sets the listed boards to hardware-tested and prints the new catalog.
+The release stays a pre-release unless every image is hardware-tested and
+--full-release is given.
 "notes" prints the release notes for a catalog.
 """
 
@@ -101,7 +103,9 @@ def mark(args):
     for i in catalog["images"]:
         if i["board"] in tested:
             i["status"] = "hardware-tested"
-    catalog["release"]["prerelease"] = any(i["status"] != "hardware-tested" for i in catalog["images"])
+    all_tested = all(i["status"] == "hardware-tested" for i in catalog["images"])
+    # A full release also needs the maintainer's explicit go-ahead.
+    catalog["release"]["prerelease"] = not (all_tested and args.full_release)
     print(json.dumps(catalog, indent=2))
 
 
@@ -140,6 +144,8 @@ def main():
     k = sub.add_parser("mark")
     k.add_argument("--catalog", required=True)
     k.add_argument("--tested", required=True)
+    k.add_argument("--full-release", action="store_true",
+                   help="allow a full release once every image is hardware-tested")
     n = sub.add_parser("notes")
     n.add_argument("--catalog", required=True)
     args = p.parse_args()
