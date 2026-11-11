@@ -315,6 +315,18 @@ else
 	printf '%s\n' "${fb_errors[@]}" | detail
 fi
 
+# --- 6. automatic updates ------------------------------------------------------
+
+au="${R}/etc/apt/apt.conf.d/20auto-upgrades"
+if in_root dpkg-query -W unattended-upgrades > /dev/null 2>&1 &&
+	grep -q 'APT::Periodic::Update-Package-Lists "1"' "${au}" 2> /dev/null &&
+	grep -q 'APT::Periodic::Unattended-Upgrade "1"' "${au}" 2> /dev/null; then
+	pass "updates: unattended-upgrades installed and enabled, as on Ubuntu server"
+else
+	fail "updates: unattended-upgrades missing or automatic updates off"
+	[[ -f "${au}" ]] && detail < "${au}"
+fi
+
 # --- summary -------------------------------------------------------------------
 
 echo

@@ -6,7 +6,6 @@
 # Roxora's own additions and the board support package
 armbian-bsp-cli-radxa-rock-4d-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
 armbian-bsp-cli-armsom-cm5-io-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
-cloud-guest-utils                   growpart for cloud-init's first-boot partition resize
 
 # Armbian's minimal package list (config/cli/noble/main/packages); plain Ubuntu packages
 alsa-utils        Armbian minimal list: audio mixer and ALSA state restore for on-board codecs
@@ -42,7 +41,6 @@ fping             BSP Depends (kept so the BSP package installs; nothing in Roxo
 # from Radxa's GitHub releases, the toolchain from the Ubuntu archive.
 aic8800-firmware                 ROCK 4D Wi-Fi/Bluetooth firmware (Radxa)
 aic8800-usb-dkms                 ROCK 4D Wi-Fi/Bluetooth driver source, built with DKMS (Radxa)
-linux-headers-edge-rockchip64    Armbian kernel headers, needed to build the ROCK 4D Wi-Fi driver
 dkms                             builds the ROCK 4D Wi-Fi driver
 binutils                         toolchain for the ROCK 4D Wi-Fi driver build
 binutils-aarch64-linux-gnu       toolchain for the ROCK 4D Wi-Fi driver build
