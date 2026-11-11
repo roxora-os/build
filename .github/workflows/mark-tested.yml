@@ -1,0 +1,42 @@
+# Run after docs/hardware-test.md has passed on a board with a release's image.
+# Updates the release's catalog and notes, and turns the pre-release into a
+# full release once every image in it is hardware-tested.
+name: Mark hardware-tested
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v2026.11.0
+        required: true
+      boards:
+        description: Comma-separated boards that passed, for example radxa-rock-4d,armsom-cm5-io
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  mark:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+      BOARDS: ${{ inputs.boards }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update catalog and notes
+        run: |
+          mkdir work
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --pattern roxora-catalog.json --dir work
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --pattern SHA256SUMS --dir work
+          python3 .github/scripts/catalog.py mark --catalog work/roxora-catalog.json --tested "${BOARDS}" > roxora-catalog.json
+          python3 .github/scripts/catalog.py notes --catalog roxora-catalog.json > notes.md
+          grep -v ' roxora-catalog.json$' work/SHA256SUMS > SHA256SUMS
+          sha256sum roxora-catalog.json >> SHA256SUMS
+          cat notes.md
+      - name: Publish
+        run: |
+          gh release upload "${TAG}" roxora-catalog.json SHA256SUMS --clobber --repo "${GITHUB_REPOSITORY}"
+          prerelease="$(python3 -c 'import json; print(str(json.load(open("roxora-catalog.json"))["release"]["prerelease"]).lower())')"
+          gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" --notes-file notes.md --prerelease="${prerelease}"
