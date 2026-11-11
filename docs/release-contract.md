@@ -36,6 +36,8 @@ For every image:
 | `roxora-...img.xz` | The image. |
 | `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. |
 | `roxora-...verify.txt` | The output of `verify/verify-image.sh` for that image. |
+| `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. |
+| `roxora-...-spi.img.sha256` | `sha256sum` output for the SPI image. |
 
 Once per release:
 
@@ -118,6 +120,11 @@ the meaning of a field increments `schema`.
 | `images[].extract_sha256` | string | SHA-256 of the decompressed image. |
 | `images[].status` | string | `hardware-tested` or `ci-only`. |
 | `images[].verify_url` | string | Download URL of the verify output. |
+| `images[].spi` | object, optional | Present only for boards with an SPI bootloader image. |
+| `images[].spi.file` | string | SPI image file name. |
+| `images[].spi.url` | string | Download URL of the SPI image. |
+| `images[].spi.size` | integer | Size of the SPI image in bytes. |
+| `images[].spi.sha256` | string | SHA-256 of the SPI image. |
 
 The newest release's catalog is always at
 

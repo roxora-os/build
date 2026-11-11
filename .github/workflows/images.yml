@@ -53,6 +53,24 @@ jobs:
           ls -la output/
           df -h /
 
+      - name: SPI bootloader
+        # Boards whose U-Boot package carries an SPI NOR image (the ROCK 4D)
+        # get it as a separate file, from the same build as the image.
+        run: |
+          deb="$(find cache/armbian-build/output -name "linux-u-boot-${{ matrix.board }}-${{ matrix.branch }}_*.deb" | head -1)"
+          [[ -n "${deb}" ]] || { echo "no U-Boot package found"; exit 1; }
+          tmp="$(mktemp -d)"
+          dpkg-deb -x "${deb}" "${tmp}"
+          spi="$(find "${tmp}" -name u-boot-rockchip-spi.bin | head -1)"
+          if [[ -n "${spi}" ]]; then
+            cp "${spi}" "output/${NAME}-spi.img"
+            (cd output && sha256sum "${NAME}-spi.img" > "${NAME}-spi.img.sha256")
+            ls -la output/*-spi.img*
+          else
+            echo "${{ matrix.board }} has no SPI bootloader image"
+          fi
+          rm -rf "${tmp}"
+
       - name: Verify
         run: |
           set -o pipefail

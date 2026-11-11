@@ -46,6 +46,7 @@ jobs:
           python3 .github/scripts/catalog.py notes --catalog artifacts/roxora-catalog.json > notes.md
           mkdir release
           cp artifacts/*.img.xz artifacts/*.img.xz.sha256 artifacts/*.verify.txt artifacts/roxora-catalog.json release/
+          cp artifacts/*-spi.img artifacts/*-spi.img.sha256 release/ 2> /dev/null || true
           (cd release && sha256sum -- * > SHA256SUMS)
           ls -la release
           cat notes.md

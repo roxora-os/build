@@ -79,6 +79,14 @@ def make(args):
             "status": "ci-only",
             "verify_url": base + f"{stem}.verify.txt",
         })
+        spi = d / f"{stem}-spi.img"
+        if spi.is_file():
+            images[-1]["spi"] = {
+                "file": spi.name,
+                "url": base + spi.name,
+                "size": spi.stat().st_size,
+                "sha256": first_field(d / f"{stem}-spi.img.sha256"),
+            }
     catalog = {
         "schema": 1,
         "release": {
