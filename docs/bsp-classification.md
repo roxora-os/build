@@ -64,7 +64,7 @@ keeps Armbian's name and is never upgraded from Armbian's repository (see
 | `/lib/systemd/system/armbian-resize-filesystem.service`, `/usr/lib/armbian/armbian-resize-filesystem` | Grows the root partition and filesystem at first boot | distro | Replaced by cloud-init's growpart and resizefs |
 | `/lib/systemd/system/armbian-disable-autologin.service`, `armbian-disable-autologin.timer` | Removes the console autologin after first login | distro | Roxora never enables autologin |
 | `/lib/systemd/system/armbian-hardware-monitor.service`, `/usr/lib/armbian/armbian-hardware-monitor` | Logs hardware information at boot | distro | Diagnostics for Armbian's tools |
-| `/lib/systemd/system/armbian-hardware-optimize.service`, `/usr/lib/armbian/armbian-hardware-optimization`, `/usr/lib/armbian/armbian-audio-config` | At every boot: I/O scheduler `none` on flash, CPU governor and limits from `/etc/default/cpufrequtils`, ondemand tuning, unmutes mixer controls, rewrites USB storage quirks into `armbianEnv.txt`, rewrites logrotate paths for ramlog | distro | Generic tuning with no RK3576 specific step; the kernel defaults are used. See open items |
+| `/lib/systemd/system/armbian-hardware-optimize.service`, `/usr/lib/armbian/armbian-hardware-optimization`, `/usr/lib/armbian/armbian-audio-config` | At every boot: I/O scheduler `none` on flash, CPU governor and limits from `/etc/default/cpufrequtils`, ondemand tuning, unmutes mixer controls, rewrites USB storage quirks into `armbianEnv.txt`, rewrites logrotate paths for ramlog | distro | Generic tuning with no RK3576 specific step; the kernel defaults are used |
 | `/lib/systemd/system/armbian-luks-rekey.service`, `/usr/lib/armbian/armbian-luks-rekey` | Re-keys an encrypted root at first boot | distro | Not used by Roxora images |
 | `/lib/systemd/system/getty@tty1.service.d/10-noclear.conf`, `/lib/systemd/system/serial-getty@.service.d/10-term.conf`, `/lib/systemd/system/systemd-modules-load.service.d/10-timeout.conf` | Changes stock systemd units: no screen clear on tty1, `TERM=linux` on serial consoles, a module loading timeout | distro | Stock Ubuntu units are used |
 | `/etc/NetworkManager/conf.d/zz-10-override-wifi-random-mac-disable.conf`, `zz-20-override-wifi-powersave-disable.conf` | NetworkManager Wi-Fi defaults | distro | NetworkManager is not part of minimal images |
@@ -83,7 +83,7 @@ keeps Armbian's name and is never upgraded from Armbian's repository (see
 
 | Script step | Layer | Action | Reason |
 | --- | --- | --- | --- |
-| preinst: set `COMPRESS=gzip` in `/etc/initramfs-tools/initramfs.conf` | hardware | keep | Boot method (see open items) |
+| preinst: set `COMPRESS=gzip` in `/etc/initramfs-tools/initramfs.conf` | hardware | keep | Boot method: Armbian's images boot with gzip initramfs files wrapped as uInitrd; Ubuntu's zstd default is not validated on these boards |
 | preinst: drop `vm.swappiness=100` from `/etc/sysctl.conf`, run `sysctl --system` | distro | remove | Only cleans up after older Armbian packages |
 | preinst: replace Ubuntu Pro messages with "Support Armbian" | distro | remove | Branding |
 | preinst: delete old Armbian motd, profile and init files, remove `02-armbian-periodic` and the stock unattended-upgrades trigger | distro | remove | Clean-up of older Armbian packages; changes Ubuntu's update settings |
@@ -125,7 +125,7 @@ creates are removed (`rootfs-remove.list`).
 | unattended-upgrades auto-update config removed and debconf seeded to keep it off (`distro-specific.sh`) | distro | unattended-upgrades is installed and reconfigured with automatic updates on, as on Ubuntu's server images |
 | `/etc/rc.local` installed (`distro-specific.sh`) | distro | removed |
 | `/etc/systemd/sleep.conf.d/00-disable.conf`, all sleep states off (`distro-specific.sh`) | hardware | kept: suspend and resume are not validated on these boards with the edge kernel, and a board that does not wake up needs a power cycle |
-| initramfs `COMPRESS=gzip` (`distro-specific.sh`, BSP preinst) | hardware | kept (see open items) |
+| initramfs `COMPRESS=gzip` (`distro-specific.sh`, BSP preinst) | hardware | kept, as part of the boot method |
 | `ondemand.service` disabled (`distro-specific.sh`) | none | the unit does not exist on noble |
 | `/etc/issue`, `/etc/issue.net` set to "Armbian ..." (`distro-agnostic.sh`) | distro | restored from base-files |
 | `/etc/legal` deleted (`distro-agnostic.sh`) | distro | restored from base-files |
@@ -148,12 +148,3 @@ creates are removed (`rootfs-remove.list`).
 | netplan `10-dhcp-all-interfaces.yaml`, `00-armbian.network.readme`, `networkd.conf.d/mac-duid.conf`, wait-online `--any` and `apt-daily-upgrade` drop-ins (net-systemd-networkd extension) | distro | removed; cloud-init writes the network configuration from the image's seed (DHCP on wired Ethernet), as on Ubuntu's server images |
 | `armbian-config.sources` (armbian-config extension) | distro | not created |
 | ROCK 4D: AIC8800 Wi-Fi and Bluetooth driver built with DKMS, firmware from Radxa's releases (radxa-aic8800 extension) | hardware | kept |
-
-## Open items
-
-These are not decided yet. The current build does what is written here.
-
-- **Initramfs compression.** Armbian sets gzip; Ubuntu uses zstd. The current
-  build keeps gzip, as part of the boot path.
-- **Hardware optimisation service.** Removed in the current build; the kernel
-  defaults for I/O scheduler and CPU frequency apply.
