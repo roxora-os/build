@@ -220,6 +220,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	mapfile -t changed < <(roxora_dpkg_changed_files early)
 	[[ ${#changed[@]} -eq 0 ]] || exit_with_error "Roxora: package files still differ from Ubuntu" "${changed[*]}"
 
+	# Files Armbian edits that dpkg --verify does not cover: configuration
+	# generated from a template at install time, and file modes.
+	# sshd_config: "PermitRootLogin yes" and "PubkeyAuthentication yes";
+	# the template is what ucf recorded when openssh-server was installed.
+	install -m 0644 "${SDCARD}/usr/share/openssh/sshd_config" "${SDCARD}/etc/ssh/sshd_config"
+	# nsswitch.conf: Armbian rewrites the hosts line.
+	install -m 0644 "${SDCARD}/usr/share/libc-bin/nsswitch.conf" "${SDCARD}/etc/nsswitch.conf"
+	# Armbian removes the execute bit from every motd script to hide the
+	# message until its first-login wizard has run; that wizard is not in
+	# Roxora, and Ubuntu ships the scripts executable.
+	chmod +x "${SDCARD}"/etc/update-motd.d/*
+
 	# Armbian seeds debconf so that unattended-upgrades does not turn on
 	# automatic updates. Ubuntu's default is on.
 	if [[ -f "${SDCARD}/usr/share/unattended-upgrades/20auto-upgrades" ]]; then
@@ -328,4 +340,12 @@ function post_post_debootstrap_tweaks__roxora_restore_late() {
 
 	mapfile -t changed < <(roxora_dpkg_changed_files)
 	[[ ${#changed[@]} -eq 0 ]] || exit_with_error "Roxora: package files still differ from Ubuntu" "${changed[*]}"
+}
+
+# Armbian writes /etc/fstab while it partitions the image, after every other
+# hook, and puts /tmp on a tmpfs. Ubuntu keeps /tmp on the root filesystem.
+function pre_umount_final_image__roxora_tmp_on_disk() {
+	: "${MOUNT:?MOUNT is not set}"
+	display_alert "Roxora" "keeping /tmp on the root filesystem" "info"
+	sed -i '\|^tmpfs[[:space:]]\+/tmp[[:space:]]|d' "${MOUNT}/etc/fstab"
 }

@@ -259,6 +259,25 @@ else
 	printf '%s\n' "${changed[@]}" | detail
 fi
 
+# Configuration generated from package templates and file modes, which dpkg
+# --verify does not check.
+tpl_errors=()
+cmp -s "${R}/usr/share/openssh/sshd_config" "${R}/etc/ssh/sshd_config" ||
+	tpl_errors+=("/etc/ssh/sshd_config differs from openssh-server's template")
+cmp -s "${R}/usr/share/libc-bin/nsswitch.conf" "${R}/etc/nsswitch.conf" ||
+	tpl_errors+=("/etc/nsswitch.conf differs from libc-bin's template")
+grep -Eq '^tmpfs[[:space:]]+/tmp[[:space:]]' "${R}/etc/fstab" &&
+	tpl_errors+=("/etc/fstab mounts /tmp as tmpfs")
+for f in "${R}"/etc/update-motd.d/*; do
+	[[ -x "${f}" ]] || tpl_errors+=("${f#"${R}"} is not executable")
+done
+if [[ ${#tpl_errors[@]} -eq 0 ]]; then
+	pass "files: sshd_config and nsswitch.conf as Ubuntu generates them, motd scripts executable, /tmp on disk"
+else
+	fail "files: ${#tpl_errors[@]} differences from Ubuntu outside dpkg's checks"
+	printf '%s\n' "${tpl_errors[@]}" | detail
+fi
+
 if grep -q '^ID=ubuntu$' "${R}/etc/os-release" && ! grep -qi armbian "${R}/etc/os-release"; then
 	# shellcheck disable=SC1091
 	pass "files: /etc/os-release is Ubuntu's ($(. "${R}/etc/os-release" && echo "${PRETTY_NAME}"))"
