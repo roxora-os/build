@@ -62,6 +62,10 @@ To check an image:
 
 Issues and pull requests: https://github.com/roxora-os/build
 
+Report problems with a Roxora image here, including kernel and board
+problems. Report a problem to Armbian only if it also happens on an official
+Armbian image.
+
 Email: oss@gahingwoo.com
 
 ## License
