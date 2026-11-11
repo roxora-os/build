@@ -66,10 +66,10 @@
 /lib/systemd/system/armbian-zram-config.service
 
 # systemd drop-ins changing stock units
-/lib/systemd/system/getty@tty1.service.d
-/lib/systemd/system/serial-getty@.service.d
-/lib/systemd/system/systemd-journald.service.d
-/lib/systemd/system/systemd-modules-load.service.d
+/lib/systemd/system/getty@tty1.service.d/10-noclear.conf
+/lib/systemd/system/serial-getty@.service.d/10-term.conf
+/lib/systemd/system/systemd-journald.service.d/override.conf
+/lib/systemd/system/systemd-modules-load.service.d/10-timeout.conf
 
 # tools: debug upload, monitor, upgrade, installer shim (needs armbian-config), dd backup
 /usr/bin/armbian-debug
@@ -124,4 +124,3 @@
 
 # motd and armbian-config data
 /etc/armbian-distribution-status
-/etc/armbian.txt

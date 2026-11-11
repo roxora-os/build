@@ -279,9 +279,18 @@ for l in Image uInitrd dtb; do
 		boot_errors+=("/boot/${l} points at $(readlink "${R}/boot/${l}"), which is missing")
 	fi
 done
+# The device tree comes from armbianEnv.txt, or, when it sets none, from the
+# default environment of the U-Boot the image carries (mainline U-Boot on the
+# ROCK 4D has DEFAULT_FDT_FILE set, and Armbian leaves fdtfile out).
+ubin="$(find "${R}"/usr/lib/linux-u-boot-* -name 'u-boot-rockchip.bin' 2> /dev/null | head -1)"
 fdtfile="$(sed -n 's/^fdtfile=//p' "${R}/boot/armbianEnv.txt" 2> /dev/null | tail -1)"
+fdtsource="armbianEnv.txt"
+if [[ -z "${fdtfile}" && -n "${ubin}" ]]; then
+	fdtfile="$(grep -a -o 'fdtfile=[[:alnum:]/._-]*\.dtb' "${ubin}" | head -1 | sed 's/^fdtfile=//')"
+	fdtsource="U-Boot default environment"
+fi
 if [[ -z "${fdtfile}" ]]; then
-	boot_errors+=("armbianEnv.txt sets no fdtfile")
+	boot_errors+=("neither armbianEnv.txt nor U-Boot sets fdtfile")
 elif [[ ! -f "${R}/boot/dtb/${fdtfile}" ]]; then
 	boot_errors+=("/boot/dtb/${fdtfile} (fdtfile) missing")
 fi
@@ -291,7 +300,6 @@ if command -v dumpimage > /dev/null && [[ -f "${R}/boot/uInitrd" ]]; then
 	dumpimage -l "${R}/boot/uInitrd" 2> /dev/null | grep -q 'RAMDisk Image' || boot_errors+=("/boot/uInitrd is not a U-Boot ramdisk image")
 fi
 # The bootloader at 32 KiB must be the one the installed U-Boot package carries.
-ubin="$(find "${R}"/usr/lib/linux-u-boot-* -name 'u-boot-rockchip.bin' 2> /dev/null | head -1)"
 if [[ -n "${ubin}" ]]; then
 	size="$(stat -c %s "${ubin}")"
 	if ! cmp -s -n "${size}" "${ubin}" <(dd if="${loop}" bs=32k skip=1 count=$(((size + 32767) / 32768)) status=none); then
@@ -301,7 +309,7 @@ else
 	boot_errors+=("no u-boot-rockchip.bin in /usr/lib/linux-u-boot-*")
 fi
 if [[ ${#boot_errors[@]} -eq 0 ]]; then
-	pass "boot: boot.scr, armbianEnv.txt (fdtfile=${fdtfile}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
+	pass "boot: boot.scr, armbianEnv.txt, fdtfile=${fdtfile} (from ${fdtsource}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
 else
 	fail "boot: ${#boot_errors[@]} problems"
 	printf '%s\n' "${boot_errors[@]}" | detail
