@@ -7,14 +7,10 @@ firmware with a stock Ubuntu userspace. Only hardware packages come from
 Armbian; everything else comes from the Ubuntu archive.
 [architecture.md](architecture.md) explains how.
 
-## Why not ubuntu-rockchip?
+## Is Roxora the only way to run Ubuntu on these boards?
 
-[ubuntu-rockchip](https://github.com/Joshua-Riek/ubuntu-rockchip) built
-Ubuntu images for Rockchip boards. Its repository has been archived by its
-owner (read only, last push September 2025), so its images get no more
-updates or new boards. Roxora takes a different route: it does not maintain
-kernels or board support itself, and uses Armbian's, which are maintained for
-many boards.
+No. Board makers and other projects publish their own images too. Roxora is
+stock Ubuntu userspace with Armbian's kernels and bootloaders.
 
 ## Why not Armbian's own images?
 
@@ -31,21 +27,17 @@ branch, based on Rockchip's kernel, may be added once the edge images work.
 
 ## Are hardware video decoding and the NPU supported?
 
-Only as far as the mainline kernel and the Ubuntu archive support them.
-
-The edge kernel uses the upstream graphics and video drivers. Their userspace
-comes from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
+Roxora images use Armbian's `edge` kernel branch, built from mainline Linux.
+The GPU and the video decoders use the upstream kernel drivers, with their
+userspace from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
 decoders. What works depends on the upstream kernel and on the versions in
 Ubuntu 24.04.
 
-Other Ubuntu images for Rockchip boards offered hardware video and NPU
-acceleration with a vendor kernel and userspace packages from third-party
-PPAs. ubuntu-rockchip, for example, added the `jjriek/rockchip` and
-`jjriek/rockchip-multimedia` PPAs to its 24.04 images
-([`config/suites/noble.sh`](https://github.com/Joshua-Riek/ubuntu-rockchip/blob/main/config/suites/noble.sh)).
-Roxora does not provide those packages and adds no PPAs, and that does not
-change if a vendor kernel is added later. Userspace stays what the Ubuntu
-archive ships.
+The NPU needs Armbian's `vendor` kernel branch today, which is based on
+Rockchip's kernel. [hwtool](https://github.com/roxora-os/hwtool) can switch an
+installed system to that branch and back (`hwtool kernel switch vendor`, then
+`hwtool kernel revert`). Roxora does not build or test images with the vendor
+branch yet.
 
 ## How do I log in the first time?
 
