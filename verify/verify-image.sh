@@ -69,6 +69,11 @@ fail() {
 	failures+=1
 }
 detail() { sed 's/^/      /'; }
+# A check could not run at all: stop, the image counts as failed.
+die() {
+	echo "verify-image.sh: $1" >&2
+	exit 1
+}
 
 # List file without comments and blank lines.
 list() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
@@ -118,13 +123,17 @@ in_root() { chroot "${R}" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C "$@
 board="$(. "${R}/etc/armbian-release" && echo "${BOARD}")"
 # The installed kernel package (not a name it Provides, such as linux-image-armbian).
 kpkg="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' 'linux-image-*' | awk '$1 ~ /^ii/ && $2 ~ /^linux-image-[^-]+-[^-]+$/ && $2 != "linux-image-armbian" { print $2; exit }')"
+[[ -n "${kpkg}" ]] || die "no installed linux-image-<branch>-<family> package in the image"
 branch="$(sed -E 's/^linux-image-([^-]+)-.*/\1/' <<< "${kpkg}")"
 echo "Image: board ${board}, kernel package ${kpkg} (branch ${branch})"
 echo
 
 # --- 1. packages against the Ubuntu reference ---------------------------------
 
-mapfile -t installed < <(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' | awk '$1 ~ /^ii/ { print $2 }' | sort -u)
+in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' > "${work}/dpkg-query.txt" ||
+	die "dpkg-query failed in the image"
+mapfile -t installed < <(awk '$1 ~ /^ii/ { print $2 }' "${work}/dpkg-query.txt" | sort -u)
+[[ ${#installed[@]} -gt 0 ]] || die "dpkg-query lists no installed packages in the image"
 declare -A ref=() allow=()
 while read -r p _; do ref["${p%%:*}"]=1; done < "${REF}/noble-server-cloudimg-arm64.manifest"
 while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist")
@@ -177,7 +186,8 @@ mapfile -t armbian_pkgs < <(cat "${R}"/var/lib/apt/lists/"${HW_REPO_HOST}"_*_Pac
 if [[ ${#armbian_pkgs[@]} -eq 0 ]]; then
 	fail "apt: no package lists from ${HW_REPO_HOST} in the image"
 else
-	in_root apt-cache policy "${armbian_pkgs[@]}" > "${work}/policy.txt" 2> /dev/null || true
+	policy_ok=yes
+	in_root apt-cache policy "${armbian_pkgs[@]}" > "${work}/policy.txt" 2> "${work}/policy.err" || policy_ok=no
 	# For each package, print "<name> <origin>" for its candidate version:
 	# "ubuntu" when an Ubuntu archive offers it (apt then downloads it from
 	# there: Armbian mirrors some Ubuntu packages at the same version),
@@ -206,7 +216,13 @@ else
 		is_hw "${p}" || bad+=("${p}")
 	done < "${work}/candidates.txt"
 	hw_from_armbian="$(awk '$2 == "armbian"' "${work}/candidates.txt" | wc -l)"
-	if [[ ${#bad[@]} -eq 0 ]]; then
+	n_cand="$(wc -l < "${work}/candidates.txt")"
+	if [[ "${policy_ok}" != yes ]]; then
+		fail "apt: apt-cache policy failed in the chroot"
+		detail < "${work}/policy.err"
+	elif [[ "${n_cand}" -ne ${#armbian_pkgs[@]} ]]; then
+		fail "apt: apt-cache policy described ${n_cand} of ${#armbian_pkgs[@]} packages from ${HW_REPO_HOST}"
+	elif [[ ${#bad[@]} -eq 0 ]]; then
 		pass "apt: of ${#armbian_pkgs[@]} packages in ${HW_REPO_HOST}, only the ${hw_from_armbian} hardware-layer ones have their candidate there"
 	else
 		fail "apt: ${HW_REPO_HOST} is the candidate for packages outside the hardware layer"
@@ -224,12 +240,16 @@ else
 	detail <<< "${bf}"
 fi
 
-in_root apt-get -s -o Debug::NoLocking=1 full-upgrade > "${work}/upgrade.txt" 2>&1 || true
+upgrade_ok=yes
+in_root apt-get -s -o Debug::NoLocking=1 full-upgrade > "${work}/upgrade.txt" 2>&1 || upgrade_ok=no
 bad=()
 while read -r p origin; do
 	is_hw "${p}" || bad+=("${p} (${origin})")
 done < <(awk -v org="${HW_REPO_ORIGIN}:" '/^Inst / && index($0, "(") && index(substr($0, index($0, "(")), org) { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
-if [[ ${#bad[@]} -eq 0 ]]; then
+if [[ "${upgrade_ok}" != yes ]]; then
+	fail "apt: apt-get -s full-upgrade failed in the chroot"
+	detail < "${work}/upgrade.txt"
+elif [[ ${#bad[@]} -eq 0 ]]; then
 	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages and none outside the hardware layer from ${HW_REPO_ORIGIN}"
 else
 	fail "apt: full-upgrade would install or upgrade distro-layer packages from ${HW_REPO_ORIGIN}"
@@ -255,6 +275,9 @@ else
 fi
 
 mapfile -t keep < <(list "${LISTS}/keep-modified.list")
+# dpkg --verify exits non-zero when it finds changed files, so judge it by
+# its error output: anything on stderr means it could not check.
+in_root dpkg --verify > "${work}/dpkg-verify.txt" 2> "${work}/dpkg-verify.err" || true
 changed=()
 while read -r path; do
 	owner="$(in_root dpkg-query -S "${path}" 2> /dev/null | head -1 | sed 's/: .*//')"
@@ -265,8 +288,11 @@ while read -r path; do
 		[[ "${path}" == ${k} ]] && skip=yes && break
 	done
 	[[ "${skip}" == yes ]] || changed+=("${path} (${owner})")
-done < <(in_root dpkg --verify 2> /dev/null | awk '{ print $NF }' | sort -u)
-if [[ ${#changed[@]} -eq 0 ]]; then
+done < <(awk '{ print $NF }' "${work}/dpkg-verify.txt" | sort -u)
+if [[ -s "${work}/dpkg-verify.err" ]]; then
+	fail "files: dpkg --verify reported errors"
+	detail < "${work}/dpkg-verify.err"
+elif [[ ${#changed[@]} -eq 0 ]]; then
 	pass "files: dpkg --verify finds no changed Ubuntu package files beyond keep-modified.list"
 else
 	fail "files: Ubuntu package files differ from the packages"
@@ -367,10 +393,11 @@ else
 fi
 grep -q '^ubuntu:' "${R}/etc/passwd" && fb_errors+=("a user named ubuntu exists")
 [[ ! -e "${R}/root/.not_logged_in_yet" ]] || fb_errors+=("/root/.not_logged_in_yet exists (Armbian first-login wizard)")
+compgen -G "${R}/etc/ssh/ssh_host_*" > /dev/null && fb_errors+=("SSH host keys are in the image (they must be created at the first boot)")
 grep -rqs -- '--autologin' "${R}/etc/systemd/system" && fb_errors+=("a getty autologin override exists")
 [[ "$(cat "${R}/etc/hostname")" == "${board}" ]] || fb_errors+=("hostname is '$(cat "${R}/etc/hostname")', expected '${board}'")
 if [[ ${#fb_errors[@]} -eq 0 ]]; then
-	pass "first boot: cloud-init seeded, user roxora with an expired password, root locked, no autologin, hostname ${board}"
+	pass "first boot: cloud-init seeded, no SSH host keys, user roxora with an expired password, root locked, no autologin, hostname ${board}"
 else
 	fail "first boot: ${#fb_errors[@]} problems"
 	printf '%s\n' "${fb_errors[@]}" | detail
