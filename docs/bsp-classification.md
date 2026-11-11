@@ -148,3 +148,4 @@ creates are removed (`rootfs-remove.list`).
 | netplan `10-dhcp-all-interfaces.yaml`, `00-armbian.network.readme`, `networkd.conf.d/mac-duid.conf`, wait-online `--any` and `apt-daily-upgrade` drop-ins (net-systemd-networkd extension) | distro | removed; cloud-init writes the network configuration from the image's seed (DHCP on wired Ethernet), as on Ubuntu's server images |
 | `armbian-config.sources` (armbian-config extension) | distro | not created |
 | ROCK 4D: AIC8800 Wi-Fi and Bluetooth driver built with DKMS, firmware from Radxa's releases (radxa-aic8800 extension) | hardware | kept |
+| ROCK 4D: `update-alternatives` makes `gcc-14` the default `gcc` (radxa-aic8800 extension, for the DKMS build of the Wi-Fi driver) | hardware | kept; it changes the default compiler on the ROCK 4D image only |
