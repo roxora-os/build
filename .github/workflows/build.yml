@@ -2,6 +2,11 @@ name: Build
 
 on:
   workflow_dispatch:
+    inputs:
+      from_source:
+        description: Build everything from source, as a release does
+        type: boolean
+        default: false
   pull_request:
     paths:
       - build.sh
@@ -20,3 +25,4 @@ jobs:
     uses: ./.github/workflows/images.yml
     with:
       version: ci.${{ github.run_number }}
+      from_source: ${{ inputs.from_source == true }}

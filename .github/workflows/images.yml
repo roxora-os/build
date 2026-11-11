@@ -9,6 +9,10 @@ on:
         description: Version string for the image file names
         type: string
         required: true
+      from_source:
+        description: Build kernel, U-Boot and every other artifact here instead of taking Armbian's cached builds
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +48,7 @@ jobs:
       BRANCH: ${{ matrix.branch }}
       RELEASE: ${{ matrix.release }}
       VERSION: ${{ inputs.version }}
+      FROM_SOURCE: ${{ inputs.from_source }}
       NAME: roxora-${{ matrix.board }}-${{ matrix.release }}-${{ matrix.branch }}-${{ inputs.version }}
     steps:
       - name: Free disk space
@@ -58,8 +63,12 @@ jobs:
 
       - name: Build
         run: |
+          extra=()
+          # Releases build everything here; other runs may reuse Armbian's
+          # cached kernel, U-Boot and rootfs builds from ghcr.io.
+          [[ "${FROM_SOURCE}" == true ]] && extra+=(ARTIFACT_IGNORE_CACHE=yes)
           ./build.sh "BOARD=${BOARD}" "BRANCH=${BRANCH}" "RELEASE=${RELEASE}" \
-            "VERSION=${VERSION}" PREFER_DOCKER=no
+            "VERSION=${VERSION}" PREFER_DOCKER=no "${extra[@]}"
           ls -la output/
           df -h /
 
