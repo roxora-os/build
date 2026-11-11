@@ -23,14 +23,26 @@ the decompressed image over Maskrom.
 
 Pass: `sha256sum -c` prints `OK`; `dd` finishes without errors.
 
+Boot order matters:
+
+- **ROCK 4D**: the BootROM starts from SPI NOR, UFS or USB, never from SD.
+  The SPI NOR must hold a mainline U-Boot (which then boots the SD card
+  first). A blank SPI drops the board into Maskrom; an EDK2 firmware in SPI
+  does not boot Roxora, which has no EFI loader yet. Note which U-Boot the
+  SPI holds; the U-Boot inside the image at 32 KiB is not used on this board.
+- **CM5-IO**: the BootROM prefers eMMC over SD. To boot the SD card, the eMMC
+  must be blank or hold a U-Boot that tries SD first (mainline U-Boot does).
+  Writing the image to the eMMC replaces whatever was there.
+
 ## 2. Serial console
 
 Debug UART at 1500000 baud, 8N1 (`ttyS0` on the edge kernel):
 
     picocom -b 1500000 /dev/ttyUSB0 --logfile roxora-<board>-serial.log
 
-Pass: U-Boot prints its banner and `Boot script loaded from mmc ...`, the
-kernel boots, and a `login:` prompt appears on the serial console.
+Pass: U-Boot prints its banner (on the ROCK 4D this is the SPI U-Boot's
+version) and `Boot script loaded from mmc ...`, the kernel boots, and a
+`login:` prompt appears on the serial console.
 
 ## 3. First boot (cold boot)
 
