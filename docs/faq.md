@@ -33,11 +33,16 @@ userspace from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
 decoders. What works depends on the upstream kernel and on the versions in
 Ubuntu 24.04.
 
-The NPU needs Armbian's `vendor` kernel branch today, which is based on
-Rockchip's kernel. [hwtool](https://github.com/roxora-os/hwtool) can switch an
+On the ROCK 4D the edge kernel has a driver for the NPU: the image ships the
+mainline Rocket driver (`rocket.ko`), and the board's device tree enables
+both NPU cores. Programs use that driver through Mesa's Teflon delegate, and
+the Mesa in Ubuntu 24.04 is older than the Mesa releases with Rocket support,
+so the Ubuntu archive does not give you a working NPU userspace yet.
+Rockchip's own RKNN runtime needs Armbian's `vendor` kernel branch, based on
+Rockchip's kernel; [hwtool](https://github.com/roxora-os/hwtool) can switch an
 installed system to that branch and back (`hwtool kernel switch vendor`, then
-`hwtool kernel revert`). Roxora does not build or test images with the vendor
-branch yet.
+`hwtool kernel revert`). Nobody has tested the NPU on Roxora yet, with either
+kernel.
 
 ## How do I log in the first time?
 
