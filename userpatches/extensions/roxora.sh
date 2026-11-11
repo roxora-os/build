@@ -132,9 +132,12 @@ function post_armbian_repo_customize_image__install_armbian-config() {
 
 # Pin the Armbian repository. Its source list stays, because kernel, DTB,
 # U-Boot and firmware updates come from it; everything else it publishes is
-# never installed or upgraded from there.
+# never installed or upgraded from there. The pin is in place from the rootfs
+# stage on: Armbian's noble-utils component publishes newer versions of Ubuntu
+# packages (base-files among them) that the rootfs upgrade would otherwise
+# take. The rootfs cache id includes this hook, so a rootfs built this way is
+# never mixed up with Armbian's own.
 function custom_apt_repo__roxora_pin_armbian() {
-	[[ "${CUSTOM_REPO_WHEN}" == image* ]] || return 0
 	display_alert "Roxora" "pinning the Armbian repository (${CUSTOM_REPO_WHEN})" "info"
 	install -D -m 0644 "${ROXORA_DIR}/apt/roxora-armbian.pref" "${SDCARD}/etc/apt/preferences.d/roxora-armbian.pref"
 }
@@ -168,6 +171,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 		chroot_sdcard_apt_get purge armbian-config
 	fi
 
+	# Any other Armbian-built package outside the hardware layer is replaced by
+	# Ubuntu's version, which the pin makes the candidate. A rootfs from a cache
+	# built without the pin carries Armbian's base-files, for example.
+	declare pkg candidate
+	while read -r pkg; do
+		candidate="$(chroot_sdcard_with_stdout apt-cache policy "${pkg}" | awk '/Candidate:/ { print $2 }')"
+		[[ -n "${candidate}" && "${candidate}" != "(none)" ]] ||
+			exit_with_error "Roxora: ${pkg} comes from Armbian and has no Ubuntu version to replace it"
+		display_alert "Roxora" "replacing Armbian's ${pkg} with ${candidate}" "info"
+		chroot_sdcard_apt_get install --allow-downgrades "${pkg}=${candidate}"
+	done < <(roxora_armbian_distro_packages)
+
 	# root's dotfiles as base-files installs them.
 	install -m 0644 "${SDCARD}/usr/share/base-files/dot.bashrc" "${SDCARD}/root/.bashrc"
 	install -m 0644 "${SDCARD}/usr/share/base-files/dot.profile" "${SDCARD}/root/.profile"
@@ -178,6 +193,10 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 		# shellcheck disable=SC2086 # the path may be a glob
 		run_host_command_logged rm -rfv "${SDCARD}"${path}
 	done < <(roxora_list rootfs-remove.list)
+
+	# Stock Ubuntu ships apt's archive cache directories; Armbian's cleanup
+	# removes them.
+	roxora_apt_cache_dirs
 
 	# Package files Armbian edited or deleted. dpkg --verify reports them; the
 	# packages they belong to are reinstalled with --force-confmiss so that
@@ -211,6 +230,21 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	fi
 }
 
+# Installed packages built by Armbian that are not hardware layer.
+function roxora_armbian_distro_packages() {
+	chroot_sdcard_with_stdout dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Maintainer}\n' |
+		awk 'tolower($0) ~ /armbian/ && $1 ~ /^ii/ { print $2 }' | while read -r pkg; do
+		[[ "${pkg}" =~ ^(linux-image|linux-dtb|linux-headers|linux-u-boot|armbian-firmware|armbian-bsp-cli)- ]] ||
+			[[ "${pkg}" == armbian-firmware ]] || echo "${pkg}"
+	done
+}
+
+function roxora_apt_cache_dirs() {
+	install -d -m 0755 "${SDCARD}/var/cache/apt/archives"
+	install -d -m 0700 "${SDCARD}/var/cache/apt/archives/partial"
+	chroot "${SDCARD}" chown _apt:root /var/cache/apt/archives/partial
+}
+
 # Package files that differ from what the package shipped, minus hardware-layer
 # packages and the files Roxora changes on purpose (keep-modified.list).
 function roxora_dpkg_changed_files() {
@@ -220,7 +254,7 @@ function roxora_dpkg_changed_files() {
 		awk '{ print $NF }' | sort -u | while read -r path; do
 		declare owner
 		owner="$(chroot_sdcard_with_stdout dpkg-query -S "${path}" 2> /dev/null | head -1 | sed 's/: .*//')"
-		[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
+		[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-headers|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
 		declare k skip=no
 		for k in "${keep[@]}"; do
 			# shellcheck disable=SC2053 # glob match on purpose
@@ -255,10 +289,7 @@ function roxora_cleanup_late_debs() {
 function post_post_debootstrap_tweaks__roxora_restore_late() {
 	display_alert "Roxora" "restoring files changed after customization" "info"
 
-	# apt recreates these on first use, but stock Ubuntu ships them.
-	install -d -m 0755 "${SDCARD}/var/cache/apt/archives"
-	install -d -m 0700 "${SDCARD}/var/cache/apt/archives/partial"
-	chroot "${SDCARD}" chown _apt:root /var/cache/apt/archives/partial
+	roxora_apt_cache_dirs
 
 	declare -a changed=()
 	mapfile -t changed < <(roxora_dpkg_changed_files)

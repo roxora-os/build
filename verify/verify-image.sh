@@ -234,7 +234,7 @@ mapfile -t keep < <(list "${LISTS}/keep-modified.list")
 changed=()
 while read -r path; do
 	owner="$(in_root dpkg-query -S "${path}" 2> /dev/null | head -1 | sed 's/: .*//')"
-	[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
+	[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-headers|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
 	skip=no
 	for k in "${keep[@]}"; do
 		# shellcheck disable=SC2053 # glob match on purpose
