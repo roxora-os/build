@@ -338,6 +338,12 @@ Recovery used below:
   writes the release's SPI bootloader to the ROCK 4D, C6 writes the image to
   the CM5-IO eMMC.
 
+Device names differ between boards and with what is fitted: on a ROCK 4D
+without eMMC the SD card is `/dev/mmcblk0`. Below, `<sd>` and `<emmc>` stand
+for the devices `hwtool info` lists as `sd` and `emmc`. Check them before
+every command that writes, above all the `dd` and `wipefs` lines, which
+hwtool does not guard.
+
 ### D1. Information (no changes)
 
     hwtool info
@@ -398,7 +404,7 @@ If the board does not come back: start it from the second SD card, then
 mount the first card and point it back at the edge kernel (its packages are
 still installed):
 
-    sudo mount /dev/mmcblk1p1 /mnt          # the first card, in a USB reader or the slot
+    sudo mount <first card>p1 /mnt          # the first card, in a USB reader or the slot
     cd /mnt/boot
     sudo ln -sfn vmlinuz-<edge version> Image
     sudo ln -sfn dtb-<edge version> dtb
@@ -440,16 +446,16 @@ image shipped.
 
 ### D4. Rewrite the bootloader on the boot device
 
-Use the device `hwtool info` shows for the SD card (usually `/dev/mmcblk1`).
+Use the device `hwtool info` shows for the SD card as `<sd>`.
 First keep a copy of what is there now:
 
-    sudo dd if=/dev/mmcblk1 of=sd-head.bin bs=1M count=16
+    sudo dd if=<sd> of=sd-head.bin bs=1M count=16
 
 Then:
 
-    sudo hwtool boot write-bootloader --target /dev/mmcblk1                    # must refuse
-    sudo hwtool boot write-bootloader --target /dev/mmcblk1 --allow-booted-device --dry-run
-    sudo hwtool boot write-bootloader --target /dev/mmcblk1 --allow-booted-device
+    sudo hwtool boot write-bootloader --target <sd>                    # must refuse
+    sudo hwtool boot write-bootloader --target <sd> --allow-booted-device --dry-run
+    sudo hwtool boot write-bootloader --target <sd> --allow-booted-device
 
 Reboot. Pass: the first command refuses and names `--allow-booted-device`, the
 dry run shows one `dd` line writing `u-boot-rockchip.bin` at 32 KiB, and the
@@ -489,19 +495,19 @@ writer.
 
 Keep a copy of the start of the eMMC (where a bootloader would be):
 
-    sudo dd if=/dev/mmcblk0 of=emmc-head.bin bs=1M count=16
+    sudo dd if=<emmc> of=emmc-head.bin bs=1M count=16
 
 Then:
 
-    sudo hwtool boot migrate --target /dev/mmcblk0 --dry-run
-    sudo hwtool boot migrate --target /dev/mmcblk0          # type yes
+    sudo hwtool boot migrate --target <emmc> --dry-run
+    sudo hwtool boot migrate --target <emmc>          # type yes
 
 Check in the dry run that "Check the copy can boot" comes before the U-Boot
 write. Power off, remove the SD card, power on. Then:
 
-    findmnt /                     # /dev/mmcblk0p1
-    cat /etc/fstab                # UUID of mmcblk0p1
-    cat /boot/armbianEnv.txt      # rootdev=UUID of mmcblk0p1
+    findmnt /                     # <emmc>p1
+    cat /etc/fstab                # UUID of <emmc>p1
+    cat /boot/armbianEnv.txt      # rootdev=UUID of <emmc>p1
     hwtool info                   # eMMC is the running system
 
 Pass: the board boots from the eMMC without the SD card, and the SD card
@@ -516,14 +522,14 @@ Blank the eMMC first, so the board does not start the D6 copy. On the
 system that is running now (the eMMC copy from D6), zero only the U-Boot
 area, 32 KiB to 16 MiB; the partition after it is left alone:
 
-    sudo dd if=/dev/zero of=/dev/mmcblk0 bs=512 seek=64 count=32704 conv=fsync
+    sudo dd if=/dev/zero of=<emmc> bs=512 seek=64 count=32704 conv=fsync
 
 Power off, insert the SD card, power on: with no U-Boot on the eMMC the
 CM5-IO's boot ROM goes on to the SD card, and the ROCK 4D starts the card as
 before. Check with `hwtool info` that the SD card is the running system, then
 remove the eMMC's partition table so U-Boot does not find the old copy there:
 
-    sudo wipefs -a /dev/mmcblk0
+    sudo wipefs -a <emmc>
 
 ROCK 4D (U-Boot in SPI flash):
 
@@ -591,6 +597,120 @@ not installed.
 
 On the CM5-IO run only the first command and record its output: whether
 its device tree has enabled NPU nodes has not been checked.
+
+### D9. Kernel headers
+
+On the ROCK 4D (headers and the aic8800 DKMS module are in the image):
+
+    hwtool kernel status                                    # record: DKMS modules
+    sudo hwtool kernel headers remove --dry-run             # record
+
+Pass: the dry run shows one `Remv linux-headers-...` line and warns that
+the DKMS modules (aic8800) cannot be rebuilt on the next kernel update. Do
+not remove them on the ROCK 4D. On the CM5-IO (no headers in the image):
+
+    sudo hwtool kernel headers install --dry-run            # record
+    sudo hwtool kernel headers install                      # type yes
+    sudo hwtool kernel headers remove                       # type yes
+
+Pass: install shows `Inst linux-headers-edge-rockchip64` and nothing
+removed; after it `dpkg -s linux-headers-edge-rockchip64` shows it
+installed; after remove it is gone.
+
+### D10. Holding the kernel packages
+
+    sudo hwtool kernel hold                                 # type yes
+    apt-mark showhold                                       # record
+    sudo hwtool kernel switch vendor --dry-run              # must refuse
+    sudo apt update && apt list --upgradable 2>/dev/null | grep -E 'linux-|armbian-firmware'
+    sudo hwtool kernel unhold                               # type yes
+
+Pass: `apt-mark showhold` lists the image, dtb, U-Boot (and headers and
+firmware where installed) packages; `hwtool kernel status` says "Held
+packages: ..."; the switch refuses and names `hwtool kernel unhold`; after
+unhold `apt-mark showhold` is empty.
+
+### D11. Boot options
+
+    hwtool bootenv show                                     # record
+    cat /proc/cmdline                                       # record
+
+Pass: the "Kernel command line" that `bootenv show` prints matches
+`/proc/cmdline`, except that `ubootpart=` shows a placeholder instead of the
+partition's PARTUUID.
+
+    sudo hwtool bootenv set verbosity=7                     # type yes
+    sudo hwtool bootenv set extraargs=hwtool.test=1         # type yes
+
+Reboot. Pass: `/proc/cmdline` contains `loglevel=7` and `hwtool.test=1`.
+Then:
+
+    sudo hwtool bootenv set 'extraargs=a;b'                 # must refuse
+    sudo hwtool bootenv set rootdev=/dev/sda1               # must refuse
+    sudo hwtool bootenv unset verbosity                     # type yes
+    sudo hwtool bootenv unset extraargs                     # type yes
+
+Reboot. Pass: `loglevel=1` again, `hwtool.test=1` gone, and backups of
+each change are in `/var/backups/hwtool/`.
+
+### D12. CPU frequency
+
+    hwtool cpu show                                         # record
+
+Pass: two policies, policy0 "Cortex-A53" CPUs 0-3 and policy4
+"Cortex-A72" CPUs 4-7, with their governors and frequency lists.
+
+    sudo hwtool cpu set --policy policy4 --max 1800000 --dry-run   # record
+    sudo hwtool cpu set --policy policy4 --max 1800000            # type yes
+    cat /sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq  # 1800000
+
+Reboot. Pass: `scaling_max_freq` is still 1800000 and
+`systemctl status hwtool-cpufreq.service` shows it ran without errors.
+Then:
+
+    sudo hwtool cpu set --policy policy0 --governor performance --dry-run   # warns about heat
+    sudo hwtool cpu reset                                   # type yes
+
+Reboot. Pass: `scaling_max_freq` of policy4 is back to its top value and
+`/etc/hwtool/cpufreq.conf` is gone.
+
+### D13. User overlay from a file
+
+Use the D2 overlay source (`roxora-test.dtso`); if D2 left it installed,
+remove it first with `sudo hwtool overlays remove roxora-test`.
+
+    sudo hwtool overlays add roxora-test.dtso --dry-run     # record
+    sudo hwtool overlays add roxora-test.dtso               # type yes
+
+Pass: if `dtc` was missing the dry run first installs
+`device-tree-compiler` and shows its `Inst` line; after the add
+`/boot/overlay-user/roxora-test.dtbo` exists and `user_overlays=` names it.
+Reboot; `cat /proc/device-tree/chosen/roxora-hwtool-test` prints ok. Then:
+
+    sudo hwtool overlays remove roxora-test                 # type yes
+
+Reboot. Pass: the property is gone, and the dtbo is kept in
+`/var/backups/hwtool/<time>/boot/overlay-user/`.
+
+### D14. Move the system to a USB drive (ROCK 4D)
+
+Use a USB 3 drive with nothing on it you want to keep, in a blue USB 3 port.
+As for D7, blank the eMMC and remove any bootable NVMe drive first: U-Boot
+checks the SD card, the eMMC, SCSI and NVMe before USB.
+
+    hwtool info                                             # the drive is listed as usb
+    sudo hwtool boot migrate --target /dev/sda --dry-run    # must refuse: needs --write-spi
+    sudo hwtool boot migrate --target /dev/sda --write-spi --dry-run   # record
+    sudo hwtool boot migrate --target /dev/sda --write-spi  # type yes
+
+Power off, remove the SD card, power on. Pass: `findmnt /` shows
+`/dev/sda1`. Record the serial log lines where U-Boot scans and finds the
+USB drive.
+
+On the CM5-IO the same command must refuse with "needs U-Boot in SPI flash,
+and this board's U-Boot package has no SPI writer". A SATA drive (through an
+adapter that shows as SATA, not USB) must refuse on both boards with "built
+without SATA support".
 
 ## Report and marking
 
