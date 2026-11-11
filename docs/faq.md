@@ -35,14 +35,24 @@ Ubuntu 24.04.
 
 On the ROCK 4D the edge kernel has a driver for the NPU: the image ships the
 mainline Rocket driver (`rocket.ko`), and the board's device tree enables
-both NPU cores. Programs use that driver through Mesa's Teflon delegate, and
-the Mesa in Ubuntu 24.04 is older than the Mesa releases with Rocket support,
-so the Ubuntu archive does not give you a working NPU userspace yet.
+both NPU cores.
+
+[charsiu](https://github.com/gahingwoo/charsiu), an LLM runtime for the
+RK3576 NPU, drives that driver directly. It is not in the image; install it
+from Armbian's repository, which the apt pin allows for this one package, and
+fetch a model:
+
+    sudo apt install charsiu
+    charsiu pull
+
+Other programs reach the Rocket driver through Mesa's Teflon delegate, and
+the Mesa in Ubuntu 24.04 is older than the Mesa releases with Rocket support.
 Rockchip's own RKNN runtime needs Armbian's `vendor` kernel branch, based on
 Rockchip's kernel; [hwtool](https://github.com/roxora-os/hwtool) can switch an
 installed system to that branch and back (`hwtool kernel switch vendor`, then
-`hwtool kernel revert`). Nobody has tested the NPU on Roxora yet, with either
-kernel.
+`hwtool kernel revert`).
+
+The NPU has not been tested on Roxora yet; the hardware test includes it.
 
 ## How do I log in the first time?
 
@@ -74,8 +84,8 @@ it is part of the image, not of the cloud-init seed. See cloud-init's
   (`apt.armbian.com`). Ubuntu's default unattended-upgrades settings do not
   include that repository, so these arrive with `sudo apt update && sudo apt
   full-upgrade`.
-- Nothing else is installed or upgraded from Armbian's repository. It is
-  pinned (see [architecture.md](architecture.md#where-packages-come-from)).
+- Nothing else is installed or upgraded from Armbian's repository, except
+  charsiu if you install it (see the NPU answer above). It is pinned (see [architecture.md](architecture.md#where-packages-come-from)).
 - A hardware package that Armbian's repository does not carry for a board
   stays at the version in the image.
 - The ROCK 4D Wi-Fi driver (AIC8800) is downloaded from Radxa's GitHub

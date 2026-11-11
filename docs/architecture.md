@@ -105,14 +105,21 @@ installed as `/etc/apt/preferences.d/roxora-hardware.pref`:
     Pin: release o=Armbian
     Pin-Priority: 500
 
+    Package: charsiu
+    Pin: release o=Armbian
+    Pin-Priority: 500
+
     Package: *
     Pin: release o=Armbian
     Pin-Priority: -1
 
 For each package apt uses the first record that matches it. The hardware
 packages get priority 500, the normal priority, so apt installs and upgrades
-them from Armbian. Every other package in the Armbian repository gets -1, so
-apt never installs or upgrades it from there.
+them from Armbian. So does charsiu, an LLM runtime for the RK3576 NPU on the
+mainline `rocket` driver that only Armbian's repository publishes; it is not
+in the image, but `sudo apt install charsiu` finds it. Every other package in
+the Armbian repository gets -1, so apt never installs or upgrades it from
+there.
 
 Which repository the hardware packages come from is set in one file,
 [`hardware-repo.conf`](../userpatches/roxora/hardware-repo.conf): today

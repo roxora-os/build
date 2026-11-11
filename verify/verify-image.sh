@@ -83,8 +83,13 @@ list() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
 source "${LISTS}/hardware-repo.conf"
 expected_pin="$(sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${LISTS}/apt/roxora-hardware.pref.in")"
 
-# Hardware-layer package patterns, taken from the first record of the pin file.
-mapfile -t hw_patterns < <(awk '/^Package:/ { for (i = 2; i <= NF; i++) print $i; exit }' <<< "${expected_pin}")
+# Packages the hardware repository may provide: those of every record in the
+# pin file with priority 500 (the hardware layer, and charsiu).
+mapfile -t hw_patterns < <(awk '
+	/^Package:/ { pk = ""; for (i = 2; i <= NF; i++) pk = pk " " $i }
+	/^Pin-Priority:/ && $2 == 500 { n = split(pk, a, " "); for (i = 1; i <= n; i++) print a[i] }
+' <<< "${expected_pin}")
+[[ ${#hw_patterns[@]} -gt 0 ]] || die "no priority 500 record in the pin file"
 is_hw() {
 	local p
 	for p in "${hw_patterns[@]}"; do

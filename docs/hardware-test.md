@@ -154,7 +154,7 @@ Pass:
   `ports.ubuntu.com`, never from `apt.armbian.com`;
 - every package that `full-upgrade` takes from `apt.armbian.com` is one of
   `linux-image-*`, `linux-dtb-*`, `linux-headers-*`, `linux-u-boot-*`,
-  `armbian-firmware*`; everything else comes from `ports.ubuntu.com`;
+  `armbian-firmware*` (or `charsiu`); everything else comes from `ports.ubuntu.com`;
 - the upgrade finishes without errors.
 
 Images carry kernel packages with a version such as `26.11.0-trunk`, lower
@@ -198,6 +198,22 @@ Pass: the board boots the older kernel and B3 and B4 pass again. Then
 If a kernel does not boot: put the card in another Linux machine, mount its
 root partition, and check that `/boot/Image`, `/boot/uInitrd` and `/boot/dtb`
 point at files of one and the same kernel version.
+
+### B8. NPU (charsiu)
+
+On the edge kernel, before or after B7:
+
+    ls -l /dev/accel/                   # accel0 exists
+    lsmod | grep rocket
+    sudo apt install charsiu            # from apt.armbian.com
+    apt-cache policy charsiu            # installed from apt.armbian.com
+    charsiu pull                        # fetch a model, as it offers
+    # then ask the model something, as charsiu pull describes
+
+Pass: `/dev/accel/accel0` exists, apt installs charsiu without installing or
+upgrading anything else from `apt.armbian.com`, and the model answers. Note
+the tokens per second charsiu prints. On the CM5-IO also record whether
+`/dev/accel/accel0` exists at all.
 
 ## Part C: Roxora Imager
 

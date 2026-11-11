@@ -2,14 +2,22 @@
 #
 # The hardware repository (origin "@ORIGIN@") stays enabled so that kernel,
 # kernel headers, device tree, U-Boot and firmware updates keep arriving.
-# Everything else it publishes is pinned to -1: apt never installs or upgrades
-# it from there, and Ubuntu's archive provides the rest of the system.
+# Everything else it publishes, apart from charsiu below, is pinned to -1:
+# apt never installs or upgrades it from there, and Ubuntu's archive provides
+# the rest of the system.
 # See https://github.com/roxora-os/build/blob/main/docs/architecture.md
 #
 # The hardware record comes first: for each package apt uses the first record
 # that matches it.
 
 Package: linux-image-* linux-dtb-* linux-headers-* linux-u-boot-* armbian-firmware*
+Pin: release o=@ORIGIN@
+Pin-Priority: 500
+
+# charsiu, the LLM runtime for the RK3576 NPU on the mainline rocket driver,
+# is published only there. It is not installed in the image; this lets
+# "apt install charsiu" find it and keeps it updated.
+Package: charsiu
 Pin: release o=@ORIGIN@
 Pin-Priority: 500
 
