@@ -50,6 +50,8 @@ To check an image:
 
 ## Documentation
 
+- [Installing Roxora](docs/install.md): download, the ROCK 4D bootloader,
+  writing the image, the first login.
 - [Architecture](docs/architecture.md): the two layers, apt pinning, the boot
   method, what Roxora does not do.
 - [What Roxora keeps from Armbian](docs/bsp-classification.md): every file
