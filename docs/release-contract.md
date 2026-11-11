@@ -79,6 +79,7 @@ the meaning of a field increments `schema`.
         {
           "board": "radxa-rock-4d",
           "board_name": "Radxa ROCK 4D",
+          "vendor": "Radxa",
           "soc": "rk3576",
           "release": "noble",
           "ubuntu_version": "24.04",
@@ -107,6 +108,7 @@ the meaning of a field increments `schema`.
 | `release.armbian_ref` | string | `armbian.ref` at the tagged commit. |
 | `images[].board` | string | Armbian board name, first column of `boards.conf`. |
 | `images[].board_name` | string | Board name for people, `NAME` column of `boards.conf`. |
+| `images[].vendor` | string | Board maker, `VENDOR` column of `boards.conf`. Catalogs from releases before 2026.11.1 do not have it; consumers then take the first word of `board_name`. |
 | `images[].soc` | string | SoC, `SOC` column of `boards.conf`. |
 | `images[].release` | string | Ubuntu codename. |
 | `images[].ubuntu_version` | string | Ubuntu version number. |

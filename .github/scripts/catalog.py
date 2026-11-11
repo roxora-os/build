@@ -34,9 +34,10 @@ def read_boards(path):
         line = line.split("#", 1)[0].strip()
         if not line:
             continue
-        board, branch, release, status, soc, *name = line.split()
+        board, branch, release, status, soc, vendor, *name = line.split()
         boards.append({"board": board, "branch": branch, "release": release,
-                       "status": status, "soc": soc, "name": " ".join(name)})
+                       "status": status, "soc": soc, "vendor": vendor,
+                       "name": " ".join(name)})
     return boards
 
 
@@ -64,6 +65,7 @@ def make(args):
         images.append({
             "board": b["board"],
             "board_name": b["name"],
+            "vendor": b["vendor"],
             "soc": b["soc"],
             "release": b["release"],
             "ubuntu_version": UBUNTU_VERSIONS[b["release"]],

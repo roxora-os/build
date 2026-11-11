@@ -13,6 +13,7 @@
     {
       "board": "radxa-rock-4d",
       "board_name": "Radxa ROCK 4D",
+      "vendor": "Radxa",
       "soc": "rk3576",
       "release": "noble",
       "ubuntu_version": "24.04",
@@ -36,6 +37,7 @@
     {
       "board": "armsom-cm5-io",
       "board_name": "ArmSoM CM5-IO",
+      "vendor": "ArmSoM",
       "soc": "rk3576",
       "release": "noble",
       "ubuntu_version": "24.04",
