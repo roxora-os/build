@@ -58,3 +58,16 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" release/* \
             --repo "${GITHUB_REPOSITORY}" --verify-tag --prerelease \
             --title "Roxora ${{ needs.check.outputs.version }}" --notes-file notes.md
+
+      # A release created with GITHUB_TOKEN starts no other workflow, so
+      # notify-site.yml does not see it; tell the website here instead.
+      - name: Tell the website to rebuild
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::notice::SITE_DISPATCH_TOKEN is not set; the site picks the release up at its next hourly build."
+            exit 0
+          fi
+          gh api repos/roxora-os/roxora-os.github.io/dispatches \
+            -f event_type=build-updated -F "client_payload[source]=release ${GITHUB_REF_NAME}"
