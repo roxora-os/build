@@ -63,7 +63,7 @@ jobs:
         run: |
           xz -l --robot "output/${NAME}.img.xz" | awk '$1 == "totals" { print $5 }' > "output/${NAME}.extract_size" || true
           xz -dc "output/${NAME}.img.xz" | sha256sum | cut -d' ' -f1 > "output/${NAME}.extract_sha256" || true
-          grep -o 'for kernel [^;]*' "output/${NAME}.verify.txt" | head -1 | sed 's/for kernel //' > "output/${NAME}.kernel" || true
+          grep -o 'in place for kernel [^;]*' "output/${NAME}.verify.txt" | head -1 | sed 's/in place for kernel //' > "output/${NAME}.kernel" || true
           cat output/*.extract_size output/*.kernel || true
 
       - uses: actions/upload-artifact@v4

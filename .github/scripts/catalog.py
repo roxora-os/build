@@ -57,6 +57,8 @@ def make(args):
             sys.exit(f"missing {img}")
         sha = first_field(d / f"{stem}.img.xz.sha256")
         kernel = first_field(d / f"{stem}.kernel").split("-", 1)[0]
+        if not re.match(r"^\d+\.\d+(\.\d+)?$", kernel):
+            sys.exit(f"{stem}: kernel version {kernel!r} does not look like a version")
         images.append({
             "board": b["board"],
             "board_name": b["name"],
