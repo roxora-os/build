@@ -33,6 +33,20 @@ function roxora_list() {
 	sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "${ROXORA_DIR}/${1}"
 }
 
+# A path list whose entries are removed: every entry must be an absolute path
+# below the root, with no "..", no whitespace and no characters beyond those
+# of file names and glob patterns. A bad entry stops the build instead of
+# reaching rm.
+function roxora_path_list() {
+	declare line
+	while read -r line; do
+		if [[ ! "${line}" =~ ^/[A-Za-z0-9._+@:/*?-]+$ || "${line}" =~ (^|/)\.\.(/|$) || "${line}" =~ ^/+\**$ ]]; then
+			exit_with_error "Roxora: bad path '${line}' in ${1}"
+		fi
+		echo "${line}"
+	done < <(roxora_list "${1}")
+}
+
 # Armbian versions the BSP package by hashing the source of the
 # post_family_tweaks_bsp hooks. The BSP filter reads bsp-remove.list at run
 # time, so fold the list's hash into the name of an empty hook: a change to the
@@ -93,7 +107,7 @@ function post_family_tweaks_bsp__roxora_hardware_only() {
 			[[ -e "${path}" || -L "${path}" ]] || continue
 			rm -rf "${path}"
 		done
-	done < <(roxora_list bsp-remove.list)
+	done < <(roxora_path_list bsp-remove.list)
 	# Leave no empty directories behind.
 	find "${destination}" -mindepth 1 -depth -type d -not -path "${destination}/DEBIAN*" -empty -delete
 
@@ -251,11 +265,15 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	install -m 0644 "${SDCARD}/usr/share/base-files/dot.profile" "${SDCARD}/root/.profile"
 
 	# Files Armbian created outside any package.
-	declare path
-	while read -r path; do
-		# shellcheck disable=SC2086 # the path may be a glob
-		run_host_command_logged rm -rfv "${SDCARD}"${path}
-	done < <(roxora_list rootfs-remove.list)
+	declare pattern path
+	while read -r pattern; do
+		# shellcheck disable=SC2086 # the pattern is a glob on purpose
+		for path in "${SDCARD}"${pattern}; do
+			[[ -e "${path}" || -L "${path}" ]] || continue
+			display_alert "Roxora" "removing ${path#"${SDCARD}"}" "info"
+			rm -rf -- "${path}"
+		done
+	done < <(roxora_path_list rootfs-remove.list)
 
 	# Stock Ubuntu ships apt's archive cache directories; Armbian's cleanup
 	# removes them.
