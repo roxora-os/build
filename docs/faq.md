@@ -95,15 +95,15 @@ repository; an installed system does not need them to stay up to date.
 Yes, with apt. The board boots the one installed kernel; there is no boot menu
 yet. To go back, install an older version of the kernel and dtb packages
 with `apt install --allow-downgrades`.
-[hardware-test.md](hardware-test.md#8-roll-back-the-kernel) shows the
-commands.
+Step B7 of [hardware-test.md](hardware-test.md#b7-roll-back-the-kernel)
+shows the commands.
 
 ## Why does the ROCK 4D not boot from the SD card?
 
 The ROCK 4D's boot ROM starts from SPI NOR flash, UFS or USB, never from the
 SD card. The SPI flash must hold a mainline U-Boot, which then boots the SD
-card. The CM5-IO prefers its eMMC over the SD card. See
-[hardware-test.md](hardware-test.md#1-check-and-flash-the-image).
+card. The CM5-IO prefers its eMMC over the SD card. See step 2 of
+[install.md](install.md#2-radxa-rock-4d-bootloader-into-spi-nor-flash).
 
 ## Are there desktop images?
 
