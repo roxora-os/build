@@ -1,11 +1,7 @@
 #cloud-config
-# Default first-boot setup, the same as Ubuntu's preinstalled server images:
-# the default user is "ubuntu" with the password "ubuntu", which must be
-# changed at the first login.
-chpasswd:
-  expire: true
-  users:
-    - name: ubuntu
-      password: ubuntu
-      type: text
+# First-boot settings. The default account (user "roxora", password
+# "roxora", to be changed at the first login) is created when the image is
+# built, so cloud-init adds no user of its own. Password logins over SSH are
+# allowed, as on Ubuntu's preinstalled server images.
+users: []
 ssh_pwauth: true

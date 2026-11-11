@@ -47,7 +47,7 @@ version) and `Boot script loaded from mmc ...`, the kernel boots, and a
 ## 3. First boot (cold boot)
 
 Power the board on from off with the flashed card or eMMC. Wait for the login
-prompt, then log in as `ubuntu` with password `ubuntu`.
+prompt, then log in as `roxora` with password `roxora`.
 
 Pass:
 
@@ -55,6 +55,7 @@ Pass:
 - on the board:
 
       cloud-init status --wait          # status: done
+      id                                # uid=1000(roxora), groups include sudo
       hostnamectl hostname              # the board name, e.g. radxa-rock-4d
       cat /etc/os-release               # NAME="Ubuntu", VERSION_ID="24.04"
       df -h /                           # size close to the card or eMMC size

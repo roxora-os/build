@@ -27,7 +27,7 @@ From [`boards.conf`](boards.conf):
 
 `ci-only` means the image builds and passes `verify/verify-image.sh` in CI;
 nobody has booted it yet. Images are minimal server images. Log in as
-`ubuntu` with the password `ubuntu`; you must change it at the first login.
+`roxora` with the password `roxora`; you must change it at the first login.
 
 ## Building
 
