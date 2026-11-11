@@ -74,7 +74,9 @@ What the extension does, in order:
    Armbian created outside packages, and reinstalls every Ubuntu package whose
    files Armbian edited, until `dpkg --verify` reports nothing but the files
    in `keep-modified.list`.
-7. Installs cloud-init and unattended-upgrades and seeds the first boot (see
+7. Installs cloud-init and unattended-upgrades, seeds the first boot and
+   creates the default account `roxora` with the password `roxora`, which
+   must be changed at the first login (see
    [faq.md](faq.md#how-do-i-log-in-the-first-time)). Automatic security
    updates are on, as on Ubuntu's server images.
 
@@ -172,8 +174,9 @@ throwaway overlay) and checks:
   files beyond `keep-modified.list`, and `/etc/os-release` is Ubuntu's;
 - the boot script, environment, kernel, `uInitrd`, device tree and the
   bootloader at 32 KiB are in place and match the installed packages;
-- cloud-init is seeded, root is locked, there is no autologin, and automatic
-  updates are on.
+- cloud-init is seeded, the `roxora` account exists with an expired
+  password, root is locked, there is no autologin, and automatic updates
+  are on.
 
 CI runs it on every image, and its output is published with each release
 (see [release-contract.md](release-contract.md)). It cannot tell whether a

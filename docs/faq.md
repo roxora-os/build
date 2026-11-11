@@ -54,10 +54,9 @@ archive ships.
 
 ## How do I log in the first time?
 
-First boot is handled by cloud-init, as on Ubuntu's preinstalled server
-images. Connect a serial console (1500000 baud, 8N1) or wired Ethernet with
-DHCP, and log in as `ubuntu` with the password `ubuntu`. You must choose a new
-password at once. SSH accepts the password login as well. The root account is
+Connect a serial console (1500000 baud, 8N1) or wired Ethernet with DHCP,
+and log in as `roxora` with the password `roxora`. You must choose a new
+password at once, on the console and over SSH alike. The root account is
 locked; use `sudo`.
 
 At the first boot cloud-init also creates new SSH host keys, grows the root
@@ -68,9 +67,9 @@ To set your own user, SSH keys, hostname or network at the first boot, plug
 a USB stick with a filesystem labelled `CIDATA` into the board before it
 starts for the first time. Put files named `user-data` and `meta-data` on it
 in cloud-init's NoCloud format. cloud-init reads the image's own seed first,
-then the `CIDATA` filesystem: a `user-data` file there replaces the image's
-(so the default `ubuntu`/`ubuntu` login is not set up), and `meta-data` is
-merged with it. See cloud-init's
+then the `CIDATA` filesystem: a `user-data` file there replaces the image's,
+and `meta-data` is merged with it. The `roxora` account exists either way;
+it is part of the image, not of the cloud-init seed. See cloud-init's
 [NoCloud documentation](https://docs.cloud-init.io/en/latest/reference/datasources/nocloud.html).
 
 ## Where do updates come from?

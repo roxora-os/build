@@ -342,11 +342,21 @@ for f in /var/lib/cloud/seed/nocloud/user-data /var/lib/cloud/seed/nocloud/meta-
 done
 in_root dpkg-query -W cloud-init > /dev/null 2>&1 || fb_errors+=("cloud-init is not installed")
 [[ "$(awk -F: '$1 == "root" { print $2 }' "${R}/etc/shadow")" == "*" ]] || fb_errors+=("root has a password")
+# Default account: roxora, password set, expired (lastchg 0), in sudo.
+roxora_shadow="$(awk -F: '$1 == "roxora"' "${R}/etc/shadow")"
+if [[ -z "${roxora_shadow}" ]]; then
+	fb_errors+=("user roxora does not exist")
+else
+	[[ "$(cut -d: -f2 <<< "${roxora_shadow}")" == '$'* ]] || fb_errors+=("roxora has no password")
+	[[ "$(cut -d: -f3 <<< "${roxora_shadow}")" == 0 ]] || fb_errors+=("roxora's password is not expired")
+	in_root id -nG roxora | grep -qw sudo || fb_errors+=("roxora is not in the sudo group")
+fi
+grep -q '^ubuntu:' "${R}/etc/passwd" && fb_errors+=("a user named ubuntu exists")
 [[ ! -e "${R}/root/.not_logged_in_yet" ]] || fb_errors+=("/root/.not_logged_in_yet exists (Armbian first-login wizard)")
 grep -rqs -- '--autologin' "${R}/etc/systemd/system" && fb_errors+=("a getty autologin override exists")
 [[ "$(cat "${R}/etc/hostname")" == "${board}" ]] || fb_errors+=("hostname is '$(cat "${R}/etc/hostname")', expected '${board}'")
 if [[ ${#fb_errors[@]} -eq 0 ]]; then
-	pass "first boot: cloud-init seeded, root locked, no autologin, hostname ${board}"
+	pass "first boot: cloud-init seeded, user roxora with an expired password, root locked, no autologin, hostname ${board}"
 else
 	fail "first boot: ${#fb_errors[@]} problems"
 	printf '%s\n' "${fb_errors[@]}" | detail

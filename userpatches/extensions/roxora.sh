@@ -57,8 +57,8 @@ function extension_prepare_config__roxora() {
 	declare -g HOST="${BOARD}"
 
 	# First boot is handled by cloud-init, as on Ubuntu's preinstalled server
-	# images: it creates the default user, regenerates the SSH host keys and
-	# grows the root partition. unattended-upgrades installs security updates
+	# images: it regenerates the SSH host keys and grows the root partition.
+	# The default user is created when the image is built. unattended-upgrades installs security updates
 	# automatically, as on Ubuntu's server images.
 	declare pkg
 	for pkg in cloud-init cloud-guest-utils unattended-upgrades; do
@@ -142,7 +142,7 @@ function custom_apt_repo__roxora_pin_armbian() {
 	install -D -m 0644 "${ROXORA_DIR}/apt/roxora-armbian.pref" "${SDCARD}/etc/apt/preferences.d/roxora-armbian.pref"
 }
 
-# Seed cloud-init for the first boot.
+# Seed cloud-init for the first boot and create the default account.
 function post_customize_image__roxora_cloud_init() {
 	display_alert "Roxora" "seeding cloud-init" "info"
 	install -D -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${SDCARD}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
@@ -150,7 +150,24 @@ function post_customize_image__roxora_cloud_init() {
 	install -m 0644 "${ROXORA_DIR}/cloud-init/user-data" "${SDCARD}/var/lib/cloud/seed/nocloud/user-data"
 	install -m 0644 "${ROXORA_DIR}/cloud-init/network-config" "${SDCARD}/var/lib/cloud/seed/nocloud/network-config"
 	sed -e "s/@HOSTNAME@/${HOST}/g" "${ROXORA_DIR}/cloud-init/meta-data" > "${SDCARD}/var/lib/cloud/seed/nocloud/meta-data"
-	# Like Ubuntu: root has no password; the cloud-init user uses sudo.
+
+	# Default account: user "roxora", password "roxora", which must be changed
+	# at the first login (console and SSH). Groups are those Ubuntu gives its
+	# default user, where they exist. cloud-init is told not to add another
+	# user (users: [] in user-data).
+	declare -a groups=()
+	declare group
+	for group in adm cdrom dip plugdev sudo; do
+		chroot_sdcard_with_stdout getent group "${group}" > /dev/null && groups+=("${group}")
+	done
+	chroot_sdcard useradd --create-home --shell /bin/bash --groups "$(
+		IFS=,
+		echo "${groups[*]}"
+	)" roxora
+	chroot_sdcard "echo roxora:roxora | chpasswd"
+	chroot_sdcard chage --lastday 0 roxora
+
+	# Like Ubuntu: root has no password; the default user uses sudo.
 	chroot_sdcard usermod -p "'*'" root
 }
 
