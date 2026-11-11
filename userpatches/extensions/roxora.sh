@@ -50,17 +50,21 @@ function extension_prepare_config__roxora() {
 	# armbian-config is not in the image, so there is no tuning profile to apply.
 	declare -g TUNING_PROFILE="none"
 	declare -g PLYMOUTH="no"
-	# Headers are not a hardware-layer package pattern; leave them out until
-	# that is decided (docs/bsp-classification.md, open items).
+	# Headers only where a board needs them for DKMS (the ROCK 4D Wi-Fi
+	# extension turns them back on); they are updated with the kernel.
 	declare -g INSTALL_HEADERS="no"
 	# Hostname is the board name (Armbian's default, kept on purpose).
 	declare -g HOST="${BOARD}"
 
 	# First boot is handled by cloud-init, as on Ubuntu's preinstalled server
 	# images: it creates the default user, regenerates the SSH host keys and
-	# grows the root partition.
-	EXTRA_PACKAGES_IMAGE+=("cloud-init" "cloud-guest-utils")
-	EXTRA_PACKAGES_IMAGE_REFS+=("roxora:${BASH_SOURCE[0]}:${LINENO}")
+	# grows the root partition. unattended-upgrades installs security updates
+	# automatically, as on Ubuntu's server images.
+	declare pkg
+	for pkg in cloud-init cloud-guest-utils unattended-upgrades; do
+		EXTRA_PACKAGES_IMAGE+=("${pkg}")
+		EXTRA_PACKAGES_IMAGE_REFS+=("extension_prepare_config__roxora:${BASH_SOURCE[0]}:${LINENO}")
+	done
 }
 
 # Drop the distro-layer parts of the board support package before it is built,
@@ -192,6 +196,19 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	fi
 	mapfile -t changed < <(roxora_dpkg_changed_files)
 	[[ ${#changed[@]} -eq 0 ]] || exit_with_error "Roxora: package files still differ from Ubuntu" "${changed[*]}"
+
+	# Armbian seeds debconf so that unattended-upgrades does not turn on
+	# automatic updates. Ubuntu's default is on.
+	if [[ -f "${SDCARD}/usr/share/unattended-upgrades/20auto-upgrades" ]]; then
+		chroot_sdcard 'echo "unattended-upgrades unattended-upgrades/enable_auto_updates boolean true" | debconf-set-selections'
+		chroot_sdcard DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive unattended-upgrades
+	fi
+
+	# Armbian disables Ubuntu's motd news timer; reinstalling base-files puts
+	# the files back but not the enablement.
+	if [[ -f "${SDCARD}/usr/lib/systemd/system/motd-news.timer" ]]; then
+		chroot_sdcard systemctl --no-reload enable motd-news.timer
+	fi
 }
 
 # Package files that differ from what the package shipped, minus hardware-layer

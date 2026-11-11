@@ -1,14 +1,14 @@
 # Installed by Roxora.
 #
-# The Armbian repository stays enabled so that kernel, device tree, U-Boot and
-# firmware updates keep arriving. Everything else it publishes is pinned to -1:
+# The Armbian repository stays enabled so that kernel, kernel headers, device
+# tree, U-Boot and firmware updates keep arriving. Everything else it publishes is pinned to -1:
 # apt never installs or upgrades it from there, and Ubuntu's archive provides
 # the rest of the system. See https://github.com/roxora-os/build/blob/main/docs/architecture.md
 #
 # The hardware record comes first: for each package apt uses the first record
 # that matches it.
 
-Package: linux-image-* linux-dtb-* linux-u-boot-* armbian-firmware*
+Package: linux-image-* linux-dtb-* linux-headers-* linux-u-boot-* armbian-firmware*
 Pin: release o=Armbian
 Pin-Priority: 500
 
