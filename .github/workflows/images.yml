@@ -90,6 +90,7 @@ jobs:
           name: ${{ env.NAME }}
           path: |
             output/${{ env.NAME }}.*
+            output/${{ env.NAME }}-spi.img*
           if-no-files-found: error
           compression-level: 0
 
