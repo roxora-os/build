@@ -552,6 +552,25 @@ function grub_pre_install__roxora_no_artwork() {
 	# system type whenever the root is not the first partition, boot script
 	# or not (lib/functions/image/partitioning.sh). Nothing reads it here.
 	rm -f "${MOUNT}/boot/armbianEnv.txt"
+
+	# The device tree hook (below) is installed after the kernel; run it once
+	# for the kernel in the image, with the EFI system partition mounted.
+	display_alert "Roxora" "UEFI image: copying the kernel's ${BOOT_SOC} device trees to the EFI system partition" "info"
+	chroot_custom "${MOUNT}" 'for d in /usr/lib/linux-image-*/; do v="${d%/}"; /etc/kernel/postinst.d/zz-roxora-efi-dtb "${v##*/linux-image-}"; done'
+	compgen -G "${MOUNT}/boot/efi/dtb/rockchip/${BOOT_SOC}-*.dtb" > /dev/null ||
+		exit_with_error "Roxora: no ${BOOT_SOC} device trees on the EFI system partition"
+}
+
+# Keep Armbian's device trees for the SoC on the EFI system partition, for the
+# firmware's device tree override (userpatches/roxora/uefi/efi-dtb.in). Every
+# kernel installation and update runs /etc/kernel/postinst.d.
+function post_customize_image__roxora_uefi_efi_dtb_hook() {
+	[[ "${ROXORA_UEFI:-no}" == yes ]] || return 0
+	[[ -n "${BOOT_SOC:-}" ]] || exit_with_error "Roxora: UEFI board ${BOARD} does not set BOOT_SOC"
+	display_alert "Roxora" "UEFI image: kernel hook for ${BOOT_SOC} device trees on the EFI system partition" "info"
+	mkdir -p "${SDCARD}/etc/kernel/postinst.d"
+	sed -e "s/@SOC@/${BOOT_SOC}/g" "${ROXORA_DIR}/uefi/efi-dtb.in" > "${SDCARD}/etc/kernel/postinst.d/zz-roxora-efi-dtb"
+	chmod 0755 "${SDCARD}/etc/kernel/postinst.d/zz-roxora-efi-dtb"
 }
 
 # Armbian writes /etc/fstab while it partitions the image, after every other

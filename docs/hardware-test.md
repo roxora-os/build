@@ -15,7 +15,7 @@ tested; parts C and D test the tools and can follow later.
 | B | Test the image | no |
 | C | Roxora Imager | SD card, eMMC, SPI NOR |
 | D | hwtool | overlays, kernel packages, bootloader, eMMC, NVMe |
-| E | UEFI image (`uefi-rk3576`), on a board with UEFI firmware | firmware storage (SPI NOR or eMMC/SD), USB drive or NVMe |
+| E | UEFI image (`generic-rk3576-uefi`), on a board with UEFI firmware | firmware storage (SPI NOR or eMMC/SD), USB drive or NVMe |
 
 ## What you need
 
@@ -906,9 +906,9 @@ the driver's own rules.
 
 ## Part E: UEFI image
 
-For `roxora-uefi-rk3576-<release>-edge-<version>.img.xz`, on a board with
+For `roxora-generic-rk3576-uefi-<release>-edge-<version>.img.xz`, on a board with
 UEFI firmware (edk2-rk3576 on the ROCK 4D or the CM5-IO). The image is
-marked `hardware-tested` when E1 to E6 pass on at least one board; name the
+marked `hardware-tested` when E1 to E7 pass on at least one board; name the
 board and the firmware version in the report. Parts C and D do not apply:
 Roxora Imager and hwtool deal with the U-Boot boot method.
 
@@ -929,7 +929,7 @@ Power on.
 Pass, on the serial console: the GRUB menu appears and counts down from 3
 seconds, `Loading Linux ...` and `Loading initial ramdisk ...` are printed,
 the kernel log follows, and a `login:` prompt appears on the serial console
-and on HDMI. B2, B3 and B4 pass; the host name is `uefi-rk3576`.
+and on HDMI. B2, B3 and B4 pass; the host name is `generic-rk3576-uefi`.
 
 ### E3. The kernel uses the firmware's device tree
 
@@ -971,6 +971,26 @@ As B7, without the `linux-dtb` package (it is not installed on this image):
 
 Pass: the GRUB menu offers the older kernel and the board boots it. Then
 `sudo apt full-upgrade` and one more reboot return it to the current kernel.
+
+### E7. Armbian's device tree through the firmware override
+
+After E4 and E5, check that the device trees on the EFI system partition are
+the running kernel's:
+
+    ls /boot/efi/dtb/rockchip/
+    for f in /boot/efi/dtb/rockchip/*.dtb; do
+        cmp "$f" "/usr/lib/linux-image-$(uname -r)/rockchip/${f##*/}" || echo "DIFFERS: $f"
+    done
+
+Pass: the board's file (`rk3576-rock-4d.dtb`, `rk3576-armsom-cm5-io.dtb`) is
+there and no line says `DIFFERS`.
+
+Turn the override on as in
+[install.md](install.md#using-armbians-device-tree-instead-of-the-firmwares)
+and reboot. Pass: the board boots to the login prompt, B3 passes (Ethernet,
+USB, NVMe, HDMI), and `cat /proc/device-tree/model` shows the board. Note
+anything that works with one device tree and not the other. Then set the
+option back to Disabled, reboot, and check that E3 passes again.
 
 ## Report and marking
 

@@ -54,7 +54,7 @@ Imager over USB (Maskrom mode).
 
 ## RK3576 boards with UEFI firmware
 
-The `uefi-rk3576` image is for any RK3576 board that runs UEFI firmware, for
+The `generic-rk3576-uefi` image is for any RK3576 board that runs UEFI firmware, for
 example [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576) on the
 Radxa ROCK 4D or the ArmSoM CM5-IO. It has no bootloader of its own and no
 `-spi.img` file: the firmware on the board starts GRUB from the image, and
@@ -68,7 +68,7 @@ gives the kernel the board's device tree.
    that the board shows the firmware's front page on HDMI or on the serial
    console (1500000 baud) before you go on.
 2. Download and check
-   `roxora-uefi-rk3576-<release>-edge-<version>.img.xz` as in step 1 above.
+   `roxora-generic-rk3576-uefi-<release>-edge-<version>.img.xz` as in step 1 above.
 3. Write the image to a USB drive, an NVMe drive or an SD card, the same way
    as in step 3 above (Roxora Imager, Raspberry Pi Imager, or `xz -dc ... |
    sudo dd ...`). An NVMe drive can be written in another computer with a
@@ -79,7 +79,26 @@ gives the kernel the board's device tree.
    `\EFI\BOOT\BOOTAA64.EFI` from the drives in its boot order; if it starts
    another system, choose the drive in its boot manager. GRUB shows its menu for
    three seconds, then starts the newest kernel. The first boot then goes on
-   as in step 4 below; the host name is `uefi-rk3576`.
+   as in step 4 below; the host name is `generic-rk3576-uefi`.
+
+### Using Armbian's device tree instead of the firmware's
+
+By default the kernel gets the firmware's device tree. The image also has
+Armbian's device trees for RK3576, from the installed kernel, on its EFI
+system partition (`/boot/efi/dtb/rockchip/`); every kernel update refreshes
+them. To boot with those instead, on edk2-rk3576:
+
+1. At power on, enter the firmware setup (Escape on edk2).
+2. Go to Device Manager, RK3576 Platform Configuration, ACPI / Device Tree.
+3. Set "Support DTB override & overlays" to Enabled. Leave "Firmware
+   Fix-ups" enabled and both paths empty.
+4. Save, and reset the board.
+
+The firmware then loads `\dtb\rockchip\<board>.dtb` (for example
+`rk3576-rock-4d.dtb` or `rk3576-armsom-cm5-io.dtb`) from the drive it boots
+from. A debug build of the firmware prints `FdtPlatform: Loaded FDT
+override` on the serial console when it does. To go back, set the option to Disabled again. If the board does not
+boot with the override, the firmware setup is still reachable at power on.
 
 Kernel updates through `apt` rewrite the GRUB menu for the new kernel.
 Armbian's kernel package replaces the kernel it updates (one package per

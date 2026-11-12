@@ -176,7 +176,7 @@ boards.
 
 ### UEFI images
 
-`uefi-rk3576` is one image for every RK3576 board that runs UEFI firmware,
+`generic-rk3576-uefi` is one image for every RK3576 board that runs UEFI firmware,
 for example [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576) on the
 ROCK 4D (in SPI NOR flash) or the CM5-IO (on eMMC or an SD card). It boots
 like other arm64 Ubuntu systems:
@@ -195,8 +195,23 @@ like other arm64 Ubuntu systems:
 The kernel is the same as on the board images: Armbian's
 `linux-image-edge-rockchip64`, with the `rocket` NPU driver. Its device tree
 files are in `/usr/lib/linux-image-<version>/rockchip/`; the `linux-dtb`
-package is not installed, because Ubuntu's `10_linux` would make GRUB load
-its `/boot/dtb-<version>` directory as a device tree.
+package is not installed, because Ubuntu's `10_linux` (as of GRUB 2.12)
+writes a `devicetree` line for any `/boot/dtb-<version>` or `/boot/dtb` it
+finds, and has no setting to turn that off.
+
+The image also carries Armbian's device trees for the SoC on the EFI system
+partition, as `\dtb\rockchip\<name>.dtb` (for example
+`rk3576-rock-4d.dtb`). That is where edk2-rk3576's device tree override
+looks: with "Support DTB override & overlays" on, the firmware loads the
+file named after its board from the drive it boots from, applies its
+fix-ups and passes that instead of its own (see
+[install.md](install.md#using-armbians-device-tree-instead-of-the-firmwares)).
+The kernel hook
+[`zz-roxora-efi-dtb`](../userpatches/roxora/uefi/efi-dtb.in) in
+`/etc/kernel/postinst.d` copies the device trees of every kernel that is
+installed or updated, and removes those the kernel no longer has, so they
+always match the kernel. No overlays are copied: the firmware applies every
+overlay in its overlay directory.
 
 Disk layout: GPT, an EFI system partition of 256 MiB (FAT, mounted at
 `/boot/efi`) at 16 MiB, then the root file system. Nothing is written
@@ -224,13 +239,13 @@ fallback loader writes boot entries the firmware does not keep.
 
 The image is built by Armbian's own GRUB support (the `grub` extension) on a
 Roxora board file,
-[`uefi-rk3576.conf`](../userpatches/config/boards/uefi-rk3576.conf), which
+[`generic-rk3576-uefi.conf`](../userpatches/config/boards/generic-rk3576-uefi.conf), which
 picks Armbian's `rk35xx` family for the kernel and sets no U-Boot
 (`BOOTCONFIG=none`). What all UEFI images share is in
 [`board.inc`](../userpatches/roxora/uefi/board.inc), so a UEFI image for
 another SoC is a board file that names its family, SoC and serial console
 (see [adding-a-board.md](adding-a-board.md#a-uefi-image-for-another-soc)).
-The hostname is the image name, `uefi-rk3576`.
+The hostname is the image name, `generic-rk3576-uefi`.
 
 ## Verification
 
@@ -254,6 +269,8 @@ throwaway overlay) and checks:
   partition is FAT and mounted at `/boot/efi`, `\EFI\BOOT\BOOTAA64.EFI` is the
   GRUB image `grub-install` made, `grub.cfg` is `update-grub`'s and starts
   the installed kernel and initrd with Roxora's arguments and no device tree,
+  the SoC's device trees on the EFI system partition are the installed
+  kernel's and the kernel hook that keeps them so is in place,
   there is no U-Boot (package, boot script, or data between 32 KiB and the
   first partition), GRUB comes from the Ubuntu archive and
   `grub2/update_nvram` is false;

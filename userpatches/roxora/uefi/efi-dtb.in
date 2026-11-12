@@ -1,0 +1,44 @@
+#!/bin/sh
+# Installed by Roxora on UEFI images as /etc/kernel/postinst.d/zz-roxora-efi-dtb.
+# See https://github.com/roxora-os/build/blob/main/docs/architecture.md
+#
+# Copies the device trees of the kernel being installed
+# (/usr/lib/linux-image-<version>/rockchip/@SOC@-*.dtb) to the EFI system
+# partition as /boot/efi/dtb/rockchip/<name>.dtb, where the UEFI firmware's
+# device tree override reads them (edk2-rk3576: "Support DTB override &
+# overlays"). The firmware uses its own device tree unless that option is
+# on, and GRUB loads none either way.
+#
+# Called by the kernel package with the kernel version as first argument.
+
+set -e
+
+version="${1:?kernel version}"
+src="/usr/lib/linux-image-${version}/rockchip"
+esp=/boot/efi
+dst="${esp}/dtb/rockchip"
+
+if [ ! -d "${src}" ]; then
+	echo "zz-roxora-efi-dtb: ${src} does not exist, no device trees copied" >&2
+	exit 0
+fi
+if ! mountpoint -q "${esp}"; then
+	echo "zz-roxora-efi-dtb: ${esp} is not mounted, device trees not copied to the EFI system partition" >&2
+	exit 0
+fi
+
+mkdir -p "${dst}"
+for f in "${src}"/@SOC@-*.dtb; do
+	[ -f "${f}" ] || continue
+	name="$(basename "${f}")"
+	# Copy next to the old file, then rename: a power cut leaves one of them.
+	cp "${f}" "${dst}/${name}.new"
+	mv -f "${dst}/${name}.new" "${dst}/${name}"
+done
+# Device trees this kernel no longer has.
+for f in "${dst}"/@SOC@-*.dtb; do
+	[ -f "${f}" ] || continue
+	[ -f "${src}/$(basename "${f}")" ] || rm -f "${f}"
+done
+sync -f "${dst}" 2> /dev/null || sync
+echo "zz-roxora-efi-dtb: device trees of ${version} copied to ${dst}"

@@ -385,6 +385,32 @@ if [[ "${uefi}" == yes ]]; then
 	[[ -n "${kver}" && -f "${R}/boot/vmlinuz-${kver}" ]] || boot_errors+=("no /boot/vmlinuz-<version> from ${kpkg}")
 	[[ -f "${R}/boot/initrd.img-${kver}" ]] || boot_errors+=("/boot/initrd.img-${kver} missing")
 	[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
+	# The kernel's device trees for the SoC on the EFI system partition, for
+	# the firmware's device tree override, and the hook that keeps them there.
+	soc="$(awk -v b="${board}" '!/^[[:space:]]*(#|$)/ && $1 == b { print $5; exit }' "${REPO}/boards.conf")"
+	[[ -x "${R}/etc/kernel/postinst.d/zz-roxora-efi-dtb" ]] ||
+		boot_errors+=("/etc/kernel/postinst.d/zz-roxora-efi-dtb missing or not executable")
+	dtb_src="${R}/usr/lib/linux-image-${kver}/rockchip"
+	dtb_dst="${work}/esp/dtb/rockchip"
+	declare -i n_dtb=0
+	if [[ -z "${soc}" ]]; then
+		boot_errors+=("${board} is not in boards.conf, cannot tell its SoC")
+	elif [[ ! -d "${dtb_dst}" ]]; then
+		boot_errors+=("no dtb/rockchip directory on the EFI system partition")
+	else
+		for f in "${dtb_src}/${soc}"-*.dtb; do
+			[[ -f "${f}" ]] || continue
+			if cmp -s "${f}" "${dtb_dst}/${f##*/}"; then
+				n_dtb+=1
+			else
+				boot_errors+=("dtb/rockchip/${f##*/} on the EFI system partition is missing or differs from kernel ${kver}'s")
+			fi
+		done
+		for f in "${dtb_dst}/${soc}"-*.dtb; do
+			[[ -f "${f}" && ! -f "${dtb_src}/${f##*/}" ]] && boot_errors+=("dtb/rockchip/${f##*/} on the EFI system partition is not in kernel ${kver}")
+		done
+		((n_dtb > 0)) || boot_errors+=("no ${soc} device trees in ${dtb_src#"${R}"} or on the EFI system partition")
+	fi
 	# grub.cfg is update-grub's, for that kernel, with Roxora's arguments.
 	cfg="${R}/boot/grub/grub.cfg"
 	root_uuid="$(blkid -p -s UUID -o value "${rootpart}" 2> /dev/null || true)"
@@ -438,7 +464,7 @@ if [[ "${uefi}" == yes ]]; then
 	in_root debconf-show grub-efi-arm64 2> /dev/null | grep -q 'grub2/update_nvram: false' ||
 		boot_errors+=("debconf grub2/update_nvram is not false (GRUB updates would write firmware boot entries)")
 	if [[ ${#boot_errors[@]} -eq 0 ]]; then
-		pass "boot: UEFI: GPT, EFI system partition ${esp_num} at /boot/efi with EFI/BOOT/BOOTAA64.EFI = GRUB's core.efi, grub.cfg from update-grub with vmlinuz and initrd.img in place for kernel ${kver}; no device tree in GRUB, no U-Boot; $(
+		pass "boot: UEFI: GPT, EFI system partition ${esp_num} at /boot/efi with EFI/BOOT/BOOTAA64.EFI = GRUB's core.efi, grub.cfg from update-grub with vmlinuz and initrd.img in place for kernel ${kver}; no device tree in GRUB, ${n_dtb} ${soc} device trees on the EFI system partition match the kernel's, no U-Boot; $(
 			IFS=,
 			echo "${grub_pkgs[*]}"
 		) from the Ubuntu archive, update_nvram false"
