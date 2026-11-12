@@ -330,13 +330,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	# File capabilities (ping's cap_net_raw) do not survive Armbian's rootfs
 	# cache, and dpkg --verify does not see them. Run again the part of each
 	# package's postinst that sets them, the way dpkg runs it.
-	declare postinst pkg version
+	declare postinst pkg version arch
 	for postinst in "${SDCARD}"/var/lib/dpkg/info/*.postinst; do
 		grep -q setcap "${postinst}" || continue
 		pkg="$(basename "${postinst}" .postinst)"
 		version="$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' "${pkg}")"
+		arch="$(chroot_sdcard_with_stdout dpkg-query -W -f '${Architecture}' "${pkg}")"
 		display_alert "Roxora" "setting file capabilities again: ${pkg}" "info"
-		chroot_sdcard DEBIAN_FRONTEND=noninteractive "/var/lib/dpkg/info/${pkg}.postinst" configure "${version}"
+		# The environment dpkg gives maintainer scripts; dpkg-maintscript-helper
+		# (called by some postinsts, iproute2's on 26.04) needs it.
+		chroot_sdcard DEBIAN_FRONTEND=noninteractive DPKG_MAINTSCRIPT_PACKAGE="${pkg%%:*}" \
+			DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT=1 DPKG_MAINTSCRIPT_ARCH="${arch}" DPKG_MAINTSCRIPT_NAME=postinst \
+			DPKG_ADMINDIR=/var/lib/dpkg DPKG_ROOT= "/var/lib/dpkg/info/${pkg}.postinst" configure "${version}"
 	done
 }
 
