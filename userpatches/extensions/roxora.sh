@@ -370,7 +370,13 @@ function roxora_apt_lists_dir() {
 function roxora_dpkg_changed_files() {
 	declare -a keep=()
 	mapfile -t keep < <(roxora_list keep-modified.list)
-	[[ "${1:-}" == early ]] && keep+=("/var/lib/apt/lists" "/var/lib/apt/lists/*")
+	# Early, Armbian's build-time stand-ins are still in place: the fake
+	# start-stop-daemon and initctl it puts in /sbin while the image is built
+	# (on Ubuntu 26.04 they overwrite dpkg's own /usr/sbin/start-stop-daemon
+	# through the /sbin symlink, which dpkg needs to run). Armbian removes them
+	# at the end; the late check restores and checks them.
+	[[ "${1:-}" == early ]] && keep+=("/var/lib/apt/lists" "/var/lib/apt/lists/*"
+		"/sbin/start-stop-daemon" "/usr/sbin/start-stop-daemon" "/sbin/initctl" "/usr/sbin/initctl")
 	chroot_sdcard_with_stdout dpkg --verify 2> /dev/null |
 		awk '{ print $NF }' | sort -u | while read -r path; do
 		declare owner
