@@ -22,6 +22,6 @@ jobs:
           shellcheck --version
           shfmt --version
       - name: shellcheck
-        run: shellcheck -x build.sh verify/*.sh userpatches/extensions/*.sh
+        run: shellcheck -x build.sh verify/*.sh userpatches/extensions/*.sh userpatches/config/boards/*.conf userpatches/roxora/uefi/*.inc
       - name: shfmt
-        run: shfmt -d -ci -sr build.sh verify/*.sh userpatches/extensions/*.sh
+        run: shfmt -d -ci -sr build.sh verify/*.sh userpatches/extensions/*.sh userpatches/config/boards/*.conf userpatches/roxora/uefi/*.inc

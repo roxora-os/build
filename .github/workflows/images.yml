@@ -61,7 +61,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Boot method
+        # UEFI images (userpatches/roxora/uefi/board.inc) carry no U-Boot.
+        run: |
+          uefi=no
+          grep -qs 'roxora/uefi/board.inc' "userpatches/config/boards/${BOARD}.conf" && uefi=yes
+          echo "UEFI=${uefi}" >> "$GITHUB_ENV"
+          echo "${BOARD}: UEFI=${uefi}"
+
       - name: Build
+        id: build
         run: |
           extra=()
           # Releases build everything here; other runs may reuse Armbian's
@@ -75,7 +84,12 @@ jobs:
       - name: SPI bootloader
         # Boards whose U-Boot package carries an SPI NOR image (the ROCK 4D)
         # get it as a separate file, from the same build as the image.
+        # UEFI images have none: the board's firmware is installed separately.
         run: |
+          if [[ "${UEFI}" == yes ]]; then
+            echo "${BOARD} is a UEFI image: no U-Boot, no SPI bootloader image"
+            exit 0
+          fi
           deb="$(find cache/armbian-build/output -name "linux-u-boot-${BOARD}-${BRANCH}_*.deb" | head -1)"
           [[ -n "${deb}" ]] || { echo "no U-Boot package found"; exit 1; }
           tmp="$(mktemp -d)"
@@ -94,6 +108,17 @@ jobs:
         run: |
           set -o pipefail
           sudo verify/verify-image.sh "output/${NAME}.img.xz" | tee "output/${NAME}.verify.txt"
+
+      - name: Boot in QEMU
+        # UEFI images only: QEMU's arm64 virt machine with Ubuntu's edk2
+        # (AAVMF) must start GRUB, and GRUB the kernel. Runs even when the
+        # verify step failed, to show how far the image boots.
+        if: ${{ !cancelled() && env.UEFI == 'yes' && steps.build.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-arm qemu-efi-aarch64 > /dev/null
+          verify/qemu-boot.sh "output/${NAME}.img.xz" "output/${NAME}.qemu-serial.log" | tee "output/${NAME}.qemu.txt"
 
       - name: Image details
         if: always()
