@@ -569,6 +569,33 @@ else
 	[[ -f "${au}" ]] && detail < "${au}"
 fi
 
+# --- 6b. apt and sudo configuration --------------------------------------------
+
+# Every file in these directories must belong to a package or be listed in
+# reference/config-unowned.list, so nothing adds an apt source, a signing key,
+# an apt setting or a sudo rule unnoticed. No local dpkg diversions either.
+declare -A unowned_ok=()
+while read -r p _; do unowned_ok["${p}"]=1; done < <(list "${REF}/config-unowned.list")
+cfg_errors=()
+while read -r f; do
+	f="${f#"${R}"}"
+	[[ -n "${unowned_ok[${f}]:-}" ]] && continue
+	in_root dpkg-query -S "${f}" > /dev/null 2>&1 || cfg_errors+=("${f} belongs to no package and is not in config-unowned.list")
+done < <(find "${R}/etc/apt/sources.list.d" "${R}/etc/apt/trusted.gpg.d" "${R}/etc/apt/keyrings" \
+	"${R}/usr/share/keyrings" "${R}/etc/apt/apt.conf.d" "${R}/etc/apt/preferences.d" "${R}/etc/sudoers.d" \
+	-mindepth 1 \( -type f -o -type l \) 2> /dev/null | sort)
+[[ -e "${R}/etc/apt/trusted.gpg" ]] && cfg_errors+=("/etc/apt/trusted.gpg exists (keys belong in a keyring file per source)")
+grep -Eq '^[[:space:]]*deb' "${R}/etc/apt/sources.list" 2> /dev/null && cfg_errors+=("/etc/apt/sources.list has sources (Ubuntu uses sources.list.d/ubuntu.sources)")
+while read -r d; do
+	cfg_errors+=("local dpkg diversion: ${d}")
+done < <(in_root dpkg-divert --list 2> /dev/null | grep '^local diversion' || true)
+if [[ ${#cfg_errors[@]} -eq 0 ]]; then
+	pass "config: apt sources, keys, apt settings and sudo rules all from packages or listed; no local diversions"
+else
+	fail "config: unexpected apt or sudo configuration"
+	printf '%s\n' "${cfg_errors[@]}" | detail
+fi
+
 # --- 7. Roxora's tools ---------------------------------------------------------
 
 # shellcheck source=userpatches/roxora/hwtool.conf

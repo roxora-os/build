@@ -1,0 +1,11 @@
+# Files in apt's and sudo's configuration directories that no package owns
+# but that belong in a Roxora image. verify-image.sh fails on any other
+# unowned file in those directories. One path per line; a reason after it.
+/etc/apt/sources.list.d/ubuntu.sources              Ubuntu archive source, written at install time as on Ubuntu's images
+/etc/apt/sources.list.d/armbian.sources             hardware repository (HW_REPO=armbian)
+/etc/apt/sources.list.d/roxora-hardware.sources     hardware repository (any other HW_REPO)
+/usr/share/keyrings/armbian.gpg                     signing key of the hardware repository
+/usr/share/keyrings/armbian-archive-keyring.gpg     signing key of the hardware repository
+/etc/apt/apt.conf.d/20auto-upgrades                 automatic updates on, written by debconf as on Ubuntu server
+/etc/apt/apt.conf.d/50unattended-upgrades           unattended-upgrades configuration, written from its template by ucf
+/etc/apt/preferences.d/roxora-hardware.pref         Roxora's pin for the hardware repository
