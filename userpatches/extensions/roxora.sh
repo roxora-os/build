@@ -548,6 +548,10 @@ function grub_early_config__roxora_settings() {
 function grub_pre_install__roxora_no_artwork() {
 	: "${MOUNT:?MOUNT is not set}"
 	roxora_remove_listed "${MOUNT}" rootfs-remove.list
+	# Armbian's partitioning writes a U-Boot environment with the root file
+	# system type whenever the root is not the first partition, boot script
+	# or not (lib/functions/image/partitioning.sh). Nothing reads it here.
+	rm -f "${MOUNT}/boot/armbianEnv.txt"
 }
 
 # Armbian writes /etc/fstab while it partitions the image, after every other
