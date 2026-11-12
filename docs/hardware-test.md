@@ -712,6 +712,197 @@ and this board's U-Boot package has no SPI writer". A SATA drive (through an
 adapter that shows as SATA, not USB) must refuse on both boards with "built
 without SATA support".
 
+### D15. Swap file
+
+Do it on both boards, booted from the SD card after a fresh first boot, so
+the swap file is the one cloud-init made.
+
+    hwtool swap show                                        # record
+    swapon --show; grep swap /etc/fstab                     # record
+
+Pass: `swap show` lists `/swap.img` as active with the size `swapon --show`
+prints, its fstab line (cloud-init 25.1 and later write it without
+`comment=cloudconfig`; record which), the memory size, and "zram: in use
+(armbian-zram-config)" with `/dev/zram0` active at priority 5.
+
+    sudo hwtool swap set 1G --dry-run                       # record
+    sudo hwtool swap set 1G                                 # type yes
+    swapon --show; ls -l /swap.img; grep -c swap.img /etc/fstab
+
+Pass: the plan runs `swapoff /swap.img` first; afterwards `/swap.img` is
+active with 1 GiB, mode `-rw-------`, and fstab has exactly one line for it,
+`/swap.img none swap sw,comment=cloudconfig 0 0`. `/etc/fstab` is backed up
+in `/var/backups/hwtool/<time>/etc/fstab`. Reboot. Pass: `swapon --show`
+shows `/swap.img` again and `grep -c swap.img /etc/fstab` is still 1.
+
+    sudo hwtool swap set 64G --dry-run                      # must refuse
+    sudo hwtool swap set 9G --dry-run                       # must refuse on a 4 GiB board
+
+Pass: the first says it does not fit or leaves less than a quarter of the
+file system free; the second says it is more than twice the memory and names
+`--force`.
+
+    sudo hwtool swap swappiness 20                          # type yes
+
+Reboot. Pass: `sysctl vm.swappiness` prints 20 and
+`/etc/sysctl.d/60-hwtool-swap.conf` has `vm.swappiness = 20`. Set it back with
+`sudo hwtool swap swappiness 60`.
+
+    sudo hwtool swap off                                    # type yes
+
+Pass: `swapon --show` lists only zram, `/swap.img` is gone, fstab has no
+line for it. Reboot and check the same (no swap unit fails:
+`systemctl --failed` is empty). Finally `sudo hwtool swap set 2G` to leave a
+swap file again.
+
+Optional, the memory check: with a 1 GiB swap file, fill memory until
+`swapon --show` reports several hundred MiB used on `/swap.img` (for example
+`stress-ng --vm 1 --vm-bytes 90% --timeout 60s` in a second terminal, while
+it runs), then `sudo hwtool swap set 2G --dry-run`. Pass: if
+MemAvailable is less than the used swap plus 256 MiB, it refuses with "cannot
+be switched off now".
+
+### D16. Pin header interfaces
+
+Use the device names `hwtool info` and the commands below print; they are
+not fixed.
+
+    hwtool interfaces list                                  # record
+
+Pass: ROCK 4D lists 20 functions, CM5-IO 10, each with header pins, and
+"Pins the board uses itself" (ROCK 4D 8, 10, 27, 28; CM5-IO 8, 10, 16, 18,
+28).
+
+Conflicts (ROCK 4D):
+
+    sudo hwtool interfaces enable spi1-m0 i2c9-m1 --dry-run  # must refuse: share pins
+    sudo hwtool interfaces enable i2c8-m1 i2c8-m2 --dry-run  # must refuse: same controller
+
+I2C, SPI, UART and PWM at once (ROCK 4D; these share no pins):
+
+    sudo hwtool interfaces enable i2c8-m2 spi1-m0 uart4-m1 pwm1-ch3-m1 --dry-run   # record
+    sudo hwtool interfaces enable i2c8-m2 spi1-m0 uart4-m1 pwm1-ch3-m1             # type yes
+
+Reboot. Pass:
+
+- `ls /dev/i2c-8` exists; with a device on pins 16 (SCL) and 18 (SDA),
+  `sudo i2cdetect -y 8` (package `i2c-tools`) shows its address;
+- `ls /dev/spidev1.*` shows `spidev1.0` and `spidev1.1`; with a jumper from
+  pin 19 (MOSI) to pin 21 (MISO), a transfer reads back what it sent (for
+  example `spidev_test -D /dev/spidev1.0 -v` if available, or a short
+  Python `spidev` script);
+- with a jumper from pin 11 (TX) to pin 15 (RX):
+  `stty -F /dev/ttyS4 115200 raw -echo; (sleep 1; echo roxora >/dev/ttyS4) & timeout 3 cat /dev/ttyS4`
+  prints `roxora` (record the device if it is not ttyS4: `dmesg | grep ttyS`);
+- `ls /sys/class/pwm/` has a new `pwmchip`; record
+  `dmesg | grep -i pwm` and `cat /sys/kernel/debug/pinctrl/*/pinmux-pins | grep -i pwm1`.
+
+Then `sudo hwtool interfaces list` marks the four as `[x]`, and the
+functions that share their pins say "cannot be enabled with ... (enabled)".
+
+    sudo hwtool interfaces disable i2c8-m2 spi1-m0 uart4-m1 pwm1-ch3-m1    # type yes
+
+Reboot. Pass: the devices above are gone and `user_overlays=` in
+`/boot/armbianEnv.txt` no longer names them.
+
+1-Wire (both boards, if a DS18B20 or another 1-Wire device is at hand):
+wire its data line to pin 7 with a 4.7 kOhm pull-up to 3.3 V (pin 1), then
+
+    sudo hwtool interfaces enable w1-gpio-pin7              # type yes; reboot
+
+Pass: `ls /sys/bus/w1/devices/` shows the device (for a DS18B20, a `28-...`
+directory whose `temperature` is plausible). Disable it again.
+
+CM5-IO: repeat the I2C and UART part with `i2c3-m0` (pins 5 SCL, 3 SDA)
+and `uart3-m0` (pins 23 TX, 19 RX; `/dev/i2c-3` and `/dev/ttyS3` from the DTB aliases), recording what you see.
+
+### D17. Bootloader version and update
+
+    sudo hwtool boot version                                # record
+    hwtool info | tail                                      # same summary
+
+Pass: one line per SPI flash and SD/eMMC device, each "up to date",
+"older", "newer", "different" or "none", with the version string, and
+"(the board starts from here)" on the device the board really starts from
+(check the first U-Boot line on the serial console after a reboot: its
+version string matches that line).
+
+    sudo hwtool boot update-bootloader --dry-run            # record
+
+Pass: if that device is up to date it refuses with "already has the
+installed U-Boot"; otherwise the plan is the same as
+`write-bootloader --allow-booted-device` for that device. If it differs on
+your board, run it (type yes), reboot, and run `boot version` again. Pass:
+"up to date" and the serial console shows the package's version.
+
+Also in the GTK app, Boot page, "Bootloader Version": Check asks for the
+password and fills the same states; Update appears only when the start
+device differs.
+
+### D18. Boot order (ROCK 4D; CM5-IO only the refusal)
+
+    sudo hwtool boot order show                             # record
+
+Pass on the ROCK 4D: the built-in order `mmc0 mmc1 scsi nvme usb pxe dhcp`,
+the environment at `/dev/mtd0` 0xc00000, and "Saved boot order: none" on a
+board that never saved one. On the CM5-IO: "cannot be changed" with the
+reason naming the U-Boot build setting.
+
+ROCK 4D, with U-Boot in SPI flash and a bootable SD card:
+
+    sudo hwtool boot order set nvme mmc0 mmc1 scsi usb pxe dhcp --dry-run   # record
+    sudo hwtool boot order set nvme mmc0 mmc1 scsi usb pxe dhcp             # type yes
+    sudo fw_printenv -c /etc/hwtool/fw_env.config boot_targets
+
+Pass: it prints the new order. Reboot with the serial console attached.
+Pass: U-Boot no longer prints a bad-CRC or "using default environment"
+warning, scans nvme before mmc0 (record those lines), and with no NVMe
+system still boots the SD card.
+
+    sudo hwtool boot order reset                            # type yes
+
+Reboot. Pass: U-Boot prints that it uses the default environment, and
+`hwtool boot order show` reports no saved order.
+
+### D19. LEDs, temperatures, fan
+
+    hwtool leds list                                        # record
+    sudo hwtool leds set <the heartbeat LED> none           # type yes
+
+Pass: that LED stops blinking at once, and its section in
+`/etc/armbian-leds.conf` has `trigger=none`. Pull the power (no clean
+shutdown) and power on. Pass: it stays off. Set it back with
+`sudo hwtool leds set <LED> heartbeat`.
+
+    hwtool fan show                                         # record
+
+Pass: every thermal zone with a plausible temperature and its trip points,
+"Fan: none" on both boards, and the notes that there is no pwm-fan node and
+that trips cannot be changed.
+
+### D20. Wi-Fi country (ROCK 4D)
+
+    hwtool wifi country                                     # record
+    sudo hwtool wifi country DE --dry-run                   # record
+    sudo hwtool wifi country DE                             # type yes
+    iw reg get                                              # record
+
+Pass: `iw reg get` shows `global` country DE; the aic8800 phy is listed as
+self-managed with country 00 (the plan warned about this).
+`/etc/modprobe.d/hwtool-wifi.conf` has `options cfg80211
+ieee80211_regdom=DE`. Reboot. Pass: `iw reg get` global is still DE.
+
+Untested option, record the result either way:
+
+    sudo hwtool wifi country DE --aic8800-follow-country    # type yes; reboot
+    iw reg get; dmesg | grep -iE 'aic|regdom|CAUTION'
+
+Record whether the phy is still self-managed and which country it shows,
+whether "CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES" is gone, and
+whether Wi-Fi still scans and connects (`nmcli dev wifi list`). Then
+`sudo hwtool wifi country DE` without the option and reboot, to go back to
+the driver's own rules.
+
 ## Report and marking
 
 Send the maintainer, per board: the release and image file name, board
