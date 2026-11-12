@@ -4,3 +4,4 @@ output/
 *.log
 *.img
 *.img.xz
+.claude/
