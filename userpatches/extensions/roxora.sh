@@ -393,6 +393,24 @@ function roxora_dpkg_changed_files() {
 declare -g -a ROXORA_LATE_PACKAGES=("dpkg" "libc-bin")
 declare -g ROXORA_LATE_DEBS=""
 
+# Preinstall the hwtool command line package (userpatches/roxora/hwtool.conf).
+# Runs after the Ubuntu files are restored, so dpkg --verify sees it as
+# installed, and before the late packages are fetched.
+function post_repo_customize_image__roxora_tools_hwtool() {
+	declare HWTOOL_VERSION HWTOOL_DEB_URL HWTOOL_DEB_SHA256
+	# shellcheck source=userpatches/roxora/hwtool.conf
+	source "${ROXORA_DIR}/hwtool.conf"
+	declare deb="${SDCARD}/tmp/roxora-hwtool.deb"
+	display_alert "Roxora" "installing hwtool ${HWTOOL_VERSION}" "info"
+	run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${deb}" "${HWTOOL_DEB_URL}"
+	echo "${HWTOOL_DEB_SHA256}  ${deb}" | sha256sum --check --status ||
+		exit_with_error "Roxora: ${HWTOOL_DEB_URL} does not match HWTOOL_DEB_SHA256 in hwtool.conf"
+	chroot_sdcard_apt_get install /tmp/roxora-hwtool.deb
+	rm -f "${deb}"
+	[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' roxora-hwtool)" == "${HWTOOL_VERSION}" ]] ||
+		exit_with_error "Roxora: roxora-hwtool ${HWTOOL_VERSION} is not installed"
+}
+
 function post_repo_customize_image__roxora_zz_fetch_late_packages() {
 	ROXORA_LATE_DEBS="$(mktemp -d)"
 	add_cleanup_handler roxora_cleanup_late_debs

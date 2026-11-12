@@ -18,6 +18,11 @@ are built and checked in CI; none has been tested on a board yet. A release
 stays a pre-release until its images pass the
 [hardware test](docs/hardware-test.md).
 
+Images include the command line part of
+[hwtool](https://github.com/roxora-os/hwtool), Roxora's hardware tool
+(device tree overlays, kernel branch, bootloader, NPU and more), pinned in
+[`userpatches/roxora/hwtool.conf`](userpatches/roxora/hwtool.conf).
+
 ## Supported boards
 
 From [`boards.conf`](boards.conf):

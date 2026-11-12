@@ -431,6 +431,17 @@ else
 	[[ -f "${au}" ]] && detail < "${au}"
 fi
 
+# --- 7. Roxora's tools ---------------------------------------------------------
+
+# shellcheck source=userpatches/roxora/hwtool.conf
+source "${LISTS}/hwtool.conf"
+hw_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-hwtool 2> /dev/null || true)"
+if [[ "${hw_inst}" == "ii  ${HWTOOL_VERSION}" ]] && in_root hwtool --version > /dev/null 2>&1; then
+	pass "tools: hwtool ${HWTOOL_VERSION} installed and runs"
+else
+	fail "tools: hwtool ${HWTOOL_VERSION} not installed or does not run (dpkg: '${hw_inst}')"
+fi
+
 # --- summary -------------------------------------------------------------------
 
 echo

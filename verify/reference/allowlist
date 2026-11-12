@@ -89,3 +89,6 @@ lto-disabled-list                dependency of dpkg-dev
 m4                               dependency of bison
 make                             toolchain for the ROCK 4D Wi-Fi driver build
 zlib1g-dev                       kernel headers build dependency
+
+# Roxora's own tools.
+roxora-hwtool                    Roxora hardware tool, command line (userpatches/roxora/hwtool.conf)

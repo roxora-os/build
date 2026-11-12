@@ -66,6 +66,9 @@ Log in on the console or over SSH:
 The root account is locked; use `sudo`. Change the password before you
 connect the board to a network you do not trust.
 
+The image includes `hwtool` for the board's hardware settings: `hwtool info`
+shows what it found, and `hwtool --help` lists what it can change.
+
 ## 5. Updates
 
 Ubuntu packages come from the Ubuntu archive, and the kernel, device tree,
