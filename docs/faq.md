@@ -31,7 +31,7 @@ Roxora images use Armbian's `edge` kernel branch, built from mainline Linux.
 The GPU and the video decoders use the upstream kernel drivers, with their
 userspace from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
 decoders. What works depends on the upstream kernel and on the versions in
-Ubuntu 24.04.
+the Ubuntu release (24.04 or 26.04).
 
 On the ROCK 4D the edge kernel has a driver for the NPU: the image ships the
 mainline Rocket driver (`rocket.ko`), and the board's device tree enables

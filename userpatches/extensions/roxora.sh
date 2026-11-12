@@ -195,7 +195,7 @@ function custom_apt_repo__roxora_pin_armbian() {
 	cat > "${SDCARD}/etc/apt/sources.list.d/roxora-hardware.sources" <<- SOURCES
 		Types: deb
 		URIs: ${HW_REPO_URI}
-		Suites: ${HW_REPO_SUITES}
+		Suites: ${HW_REPO_SUITES:-${RELEASE}}
 		Components: ${HW_REPO_COMPONENTS}
 		Signed-By: /usr/share/keyrings/${HW_REPO_KEY}
 	SOURCES

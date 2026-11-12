@@ -140,7 +140,11 @@ in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' > "${work}/dpkg-quer
 mapfile -t installed < <(awk '$1 ~ /^ii/ { print $2 }' "${work}/dpkg-query.txt" | sort -u)
 [[ ${#installed[@]} -gt 0 ]] || die "dpkg-query lists no installed packages in the image"
 declare -A ref=() allow=()
-while read -r p _; do ref["${p%%:*}"]=1; done < "${REF}/noble-server-cloudimg-arm64.manifest"
+# shellcheck source=/dev/null
+codename="$(. "${R}/etc/os-release" && echo "${VERSION_CODENAME}")"
+manifest="${REF}/${codename}-server-cloudimg-arm64.manifest"
+[[ -f "${manifest}" ]] || die "no reference manifest for Ubuntu ${codename} (${manifest})"
+while read -r p _; do ref["${p%%:*}"]=1; done < "${manifest}"
 while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist")
 unexplained=()
 for p in "${installed[@]}"; do

@@ -24,7 +24,7 @@ import re
 import sys
 
 REPO = "roxora-os/build"
-UBUNTU_VERSIONS = {"noble": "24.04"}
+UBUNTU_VERSIONS = {"noble": "24.04", "resolute": "26.04"}
 TAG_RE = re.compile(r"^v(\d{4}\.\d{2}\.\d+)$")
 
 

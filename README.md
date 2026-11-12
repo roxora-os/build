@@ -26,6 +26,8 @@ From [`boards.conf`](boards.conf):
 | --- | --- | --- | --- | --- |
 | Radxa ROCK 4D | RK3576 | 24.04 (noble) | edge | ci-only |
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | edge | ci-only |
+| Radxa ROCK 4D | RK3576 | 26.04 (resolute) | edge | ci-only |
+| ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | ci-only |
 
 `ci-only` means the image builds and passes `verify/verify-image.sh` in CI;
 nobody has booted it yet. Images are minimal server images. Log in as

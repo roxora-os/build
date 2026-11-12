@@ -15,10 +15,11 @@ the `-spi.img` file and its `.sha256` file.
 Roxora Imager downloads and checks the files itself; you can skip to step 3
 if you use it.
 
-Check the files:
+Check the files (`<release>` is `noble` for Ubuntu 24.04 or `resolute` for
+Ubuntu 26.04):
 
-    sha256sum -c roxora-<board>-noble-edge-<version>.img.xz.sha256
-    sha256sum -c roxora-<board>-noble-edge-<version>-spi.img.sha256   # ROCK 4D
+    sha256sum -c roxora-<board>-<release>-edge-<version>.img.xz.sha256
+    sha256sum -c roxora-<board>-<release>-edge-<version>-spi.img.sha256   # ROCK 4D
 
 Every line must end in `OK`.
 
@@ -44,7 +45,7 @@ Any of these works:
 - On Linux, where `/dev/sdX` is the SD card (check with `lsblk`; everything
   on it is erased):
 
-      xz -dc roxora-<board>-noble-edge-<version>.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+      xz -dc roxora-<board>-<release>-edge-<version>.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
 
 To install to the CM5-IO's eMMC instead, write the image there with Roxora
 Imager over USB (Maskrom mode).
