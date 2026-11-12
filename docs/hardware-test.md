@@ -992,6 +992,49 @@ USB, NVMe, HDMI), and `cat /proc/device-tree/model` shows the board. Note
 anything that works with one device tree and not the other. Then set the
 option back to Disabled, reboot, and check that E3 passes again.
 
+### E8. hwtool on the UEFI image
+
+On a board booted from the `generic-rk3576-uefi` image (edk2-rk3576), first
+with the firmware's own device tree, then with its "DTB override" option
+pointing at Armbian's DTB for the board on the ESP.
+
+    hwtool --version                                        # 0.1.0 is preinstalled; record
+    hwtool info                                             # record
+    hwtool uefi status                                      # record
+
+Pass: "UEFI image (GRUB), device tree from the firmware", the firmware
+vendor and version (from DMI; record if they show "unknown"), the model and
+"SoC: rk3576" from the device tree, and the number of DTBs under
+`/boot/efi/dtb/rockchip/`. No U-Boot package is listed.
+
+These must refuse with a reason that starts with "UEFI image:" and change
+nothing:
+
+    hwtool overlays list
+    hwtool interfaces list
+    hwtool bootenv show
+    sudo hwtool boot version
+    sudo hwtool boot write-bootloader --target spi --dry-run
+    sudo hwtool boot update-bootloader --dry-run
+    hwtool boot order show
+    sudo hwtool kernel switch vendor --dry-run
+    sudo hwtool boot migrate --target /dev/nvme0n1 --dry-run   # any device hwtool info lists
+
+These must work as on the other images: `hwtool kernel status` (branch
+edge only), `sudo hwtool kernel hold --dry-run`, `hwtool cpu show`,
+`hwtool leds list`, `hwtool fan show`, `hwtool wifi country`,
+`hwtool swap show`, `hwtool npu status`.
+
+Now enable the firmware's DTB override (edk2 setup menu; record the menu
+path and the file chosen), boot, and run `hwtool uefi status` again. Pass:
+"device tree from the firmware's DTB override (/boot/efi/dtb/rockchip/<file>)"
+and a similarity of 98% or more; with the override off it said "firmware"
+with a lower share (record both numbers, they set the threshold).
+
+In the GTK app: the Board and Boot pages show "UEFI Firmware" with the
+firmware and the device tree source; Overlays and Pin Header show "Not Used
+on UEFI Images" with the reason. Take a screenshot of each.
+
 ## Report and marking
 
 Send the maintainer, per board: the release and image file name, board
