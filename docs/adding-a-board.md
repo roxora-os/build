@@ -132,7 +132,10 @@ Every line must say `PASS`. What to look at when one fails:
 - `files`: a removed path is back, or an Ubuntu file differs from its
   package. Usually a board hook from step 3 that is not handled yet.
 - `boot`: the boot script, `armbianEnv.txt`, kernel, `uInitrd`, device tree or
-  the bootloader at 32 KiB is missing or does not match the packages.
+  the bootloader at 32 KiB is missing or does not match the packages. On a
+  UEFI image (`boot: UEFI`): the EFI system partition, GRUB or `grub.cfg`
+  is not as described in
+  [architecture.md](architecture.md#uefi-images).
 
 ## 6. Test on the board
 
@@ -151,3 +154,39 @@ workflow for that release and board, which updates the release's catalog and
 notes (see [release-contract.md](release-contract.md)). Set the board's
 `STATUS` in `boards.conf` to `hardware-tested` at the same time, so the Boards
 page shows it.
+
+## A UEFI image for another SoC
+
+A UEFI image is not for one board but for every board of a SoC that runs
+UEFI firmware (see [architecture.md](architecture.md#uefi-images)). It has
+its own name, `uefi-<soc>`, and its own board file in
+[`userpatches/config/boards/`](../userpatches/config/boards), because Armbian
+has no such board. Everything UEFI images share is in
+[`userpatches/roxora/uefi/board.inc`](../userpatches/roxora/uefi/board.inc).
+
+1. Copy [`uefi-rk3576.conf`](../userpatches/config/boards/uefi-rk3576.conf)
+   to `uefi-<soc>.conf` and set:
+   - `BOARD_NAME`;
+   - `BOARDFAMILY`: the Armbian family whose `edge` kernel the SoC's boards
+     use (`rk35xx` for RK3576, `rockchip-rk3588` for RK3588; at the pinned
+     commit both give `linux-image-edge-rockchip64`, see
+     `config/sources/families/include/rockchip64_common.inc`);
+   - `BOOT_SOC`: the SoC, lower case;
+   - `ROXORA_UEFI_SERIAL`: the kernel console on the SoC's debug UART, as
+     `console=` takes it (`ttyS0,1500000n8` on RK3576, `ttyS2,1500000n8` on
+     RK3588).
+2. Add one line per Ubuntu release to `boards.conf`, with `VENDOR`
+   `Generic` and a `NAME` that says which boards it is for:
+
+       uefi-rk3588      edge    noble    ci-only  rk3588  Generic RK3588 boards with UEFI firmware
+
+3. Add `armbian-bsp-cli-uefi-<soc>-edge-grub` to
+   [`verify/reference/allowlist`](../verify/reference/allowlist) (Armbian adds
+   `-grub` to the BSP package name of GRUB images).
+4. Check the family file for anything that assumes U-Boot beyond the boot
+   script and its environment, which `board.inc` already turns off.
+
+CI builds the image, runs `verify-image.sh` on it (the UEFI checks are
+chosen because the image has an EFI system partition) and boots it in QEMU.
+Then test it on at least one board with the firmware, following
+[hardware-test.md](hardware-test.md#part-e-uefi-image).

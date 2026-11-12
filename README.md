@@ -33,6 +33,14 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | edge | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | edge | ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | ci-only |
+| RK3576 boards with UEFI firmware (`uefi-rk3576`) | RK3576 | 24.04 (noble) | edge | ci-only |
+| RK3576 boards with UEFI firmware (`uefi-rk3576`) | RK3576 | 26.04 (resolute) | edge | ci-only |
+
+The `uefi-rk3576` image is for any RK3576 board that runs UEFI firmware,
+such as [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576). It carries
+no U-Boot: the firmware starts Ubuntu's GRUB from the image and passes the
+board's device tree to the kernel. See
+[Installing Roxora](docs/install.md#rk3576-boards-with-uefi-firmware).
 
 `ci-only` means the image builds and passes `verify/verify-image.sh` in CI;
 nobody has booted it yet. Images are minimal server images. Log in as
@@ -58,9 +66,9 @@ To check an image:
 ## Documentation
 
 - [Installing Roxora](docs/install.md): download, the ROCK 4D bootloader,
-  writing the image, the first login.
+  boards with UEFI firmware, writing the image, the first login.
 - [Architecture](docs/architecture.md): the two layers, apt pinning, the boot
-  method, what Roxora does not do.
+  methods (U-Boot and UEFI), what Roxora does not do.
 - [What Roxora keeps from Armbian](docs/bsp-classification.md): every file
   and change, and the reason for it.
 - [Adding a board](docs/adding-a-board.md)

@@ -153,3 +153,8 @@ creates are removed (`rootfs-remove.list`).
 | `armbian-config.sources` (armbian-config extension) | distro | not created |
 | ROCK 4D: AIC8800 Wi-Fi and Bluetooth driver built with DKMS, firmware from Radxa's releases (radxa-aic8800 extension) | hardware | kept |
 | ROCK 4D: `update-alternatives` makes `gcc-14` the default `gcc` (radxa-aic8800 extension, for the DKMS build of the Wi-Fi driver) | hardware | kept; it changes the default compiler on the ROCK 4D image only |
+| UEFI images: `/etc/default/grub.d/98-armbian.cfg` with Armbian's name in the GRUB menu and the EFI directory, its wallpaper, fonts, menu timeout and `splash` arguments (grub extension) | distro | replaced by Roxora's `/etc/default/grub.d/90-roxora.cfg`: console arguments and menu only, Ubuntu's `/etc/default/grub` for the rest |
+| UEFI images: `/usr/share/images/grub/wallpaper.png`, `/boot/grub/fonts/armbian-hidpi.pf2`, `/usr/share/desktop-base/grub_background.sh` (grub extension) | distro | removed |
+| UEFI images: `efivar`, `busybox` and `cloud-initramfs-growroot` installed (grub extension) | distro | not installed; cloud-init grows the root partition |
+| UEFI images: files with `uboot` in their name removed from the BSP package, and the initramfs `99-uboot` hook (grub extension) | hardware | kept: there is no U-Boot to wrap the initramfs for |
+| UEFI images: `grub-install --removable --no-nvram` and `update-grub` at build time, GPT with an EFI system partition (grub extension) | hardware | kept; the boot method of these images |

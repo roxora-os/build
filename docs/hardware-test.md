@@ -15,6 +15,7 @@ tested; parts C and D test the tools and can follow later.
 | B | Test the image | no |
 | C | Roxora Imager | SD card, eMMC, SPI NOR |
 | D | hwtool | overlays, kernel packages, bootloader, eMMC, NVMe |
+| E | UEFI image (`uefi-rk3576`), on a board with UEFI firmware | firmware storage (SPI NOR or eMMC/SD), USB drive or NVMe |
 
 ## What you need
 
@@ -59,8 +60,8 @@ Pass: every line ends in `OK`.
 
 The ROCK 4D's boot ROM starts from SPI NOR, UFS or USB and never from SD, so
 the SD card boots only through a U-Boot in SPI NOR. A blank SPI NOR drops the
-board into Maskrom; an EDK2 firmware there does not start Roxora, which has no
-EFI loader yet.
+board into Maskrom; an EDK2 firmware there does not start the board image
+(the UEFI image is for that, see Part E).
 
 Write the release's `-spi.img` with Roxora Imager (C7, or C10 in the
 browser). Pass: "Written and verified". Skip this step if the SPI NOR already
@@ -902,6 +903,74 @@ whether "CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES" is gone, and
 whether Wi-Fi still scans and connects (`nmcli dev wifi list`). Then
 `sudo hwtool wifi country DE` without the option and reboot, to go back to
 the driver's own rules.
+
+## Part E: UEFI image
+
+For `roxora-uefi-rk3576-<release>-edge-<version>.img.xz`, on a board with
+UEFI firmware (edk2-rk3576 on the ROCK 4D or the CM5-IO). The image is
+marked `hardware-tested` when E1 to E6 pass on at least one board; name the
+board and the firmware version in the report. Parts C and D do not apply:
+Roxora Imager and hwtool deal with the U-Boot boot method.
+
+### E1. Firmware
+
+Install the firmware as its project describes (on the ROCK 4D into SPI NOR,
+on the CM5-IO onto eMMC or SD). Pass: the firmware's front page appears on
+HDMI and its messages on the serial console (1500000 baud). Note the firmware
+version and its device tree settings (ACPI or device tree; on edk2-rk3576
+the ROCK 4D defaults to device tree, the CM5-IO to both).
+
+### E2. Write and boot
+
+Write the image to a USB drive or an NVMe drive (an SD card also works on
+the ROCK 4D, and on the CM5-IO when the firmware is on the eMMC), as in A3.
+Power on.
+
+Pass, on the serial console: the GRUB menu appears and counts down from 3
+seconds, `Loading Linux ...` and `Loading initial ramdisk ...` are printed,
+the kernel log follows, and a `login:` prompt appears on the serial console
+and on HDMI. B2, B3 and B4 pass; the host name is `uefi-rk3576`.
+
+### E3. The kernel uses the firmware's device tree
+
+    cat /proc/device-tree/model; echo
+    cat /proc/cmdline
+    ls /sys/firmware/efi
+    dmesg | grep -i -e 'efi:' -e acpi | head -20
+
+Pass: the model is the board's, `/proc/cmdline` has `earlycon console=ttyS0,1500000n8
+console=tty1`, `/sys/firmware/efi` exists, and the kernel says ACPI is
+disabled or not used. Ethernet, USB, NVMe and HDMI work as in B3.
+
+### E4. Update and GRUB
+
+Do B5. Then:
+
+    grep -E '^[[:space:]]*(linux|initrd|devicetree)' /boot/grub/grub.cfg
+    ls -l /boot/efi/EFI/BOOT/ /boot/efi/EFI/
+
+Pass: grub.cfg names the kernel B5 installed, with no `devicetree` line;
+`EFI/BOOT/BOOTAA64.EFI` is present. If B5 updated GRUB (`grub-efi-arm64`),
+also `EFI/ubuntu/grubaa64.efi`, and the update printed no `efibootmgr` or
+NVRAM error.
+
+### E5. Reboot into the new kernel
+
+    sudo reboot
+    uname -r
+
+Pass: GRUB starts the new kernel, `uname -r` shows the version from B5.
+
+### E6. Roll back the kernel
+
+As B7, without the `linux-dtb` package (it is not installed on this image):
+
+    sudo apt install --allow-downgrades linux-image-edge-rockchip64=<older>
+    sudo reboot
+    uname -r
+
+Pass: the GRUB menu offers the older kernel and the board boots it. Then
+`sudo apt full-upgrade` and one more reboot return it to the current kernel.
 
 ## Report and marking
 

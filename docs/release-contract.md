@@ -23,10 +23,14 @@ One image per line of `boards.conf`:
 
 Example: `roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz`.
 
-- `<board>` is the Armbian board name (`radxa-rock-4d`), `<release>` the
-  Ubuntu codename (`noble`), `<branch>` the Armbian kernel branch (`edge`).
+- `<board>` is the Armbian board name (`radxa-rock-4d`), or for a UEFI image
+  `uefi-<soc>` (`uefi-rk3576`); `<release>` the Ubuntu codename (`noble`),
+  `<branch>` the Armbian kernel branch (`edge`).
 - The file is a whole-disk image compressed with xz. It is written as is to
-  an SD card, USB drive, eMMC or NVMe; the bootloader is inside it at 32 KiB.
+  an SD card, USB drive, eMMC or NVMe. A board image has the bootloader
+  inside it at 32 KiB. A UEFI image has none: it has a GPT with an EFI
+  system partition, and the board's UEFI firmware, installed separately,
+  starts GRUB from it.
 
 ## Files in each release
 
@@ -37,7 +41,7 @@ For every image:
 | `roxora-...img.xz` | The image. |
 | `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. |
 | `roxora-...verify.txt` | The output of `verify/verify-image.sh` for that image. |
-| `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. |
+| `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. UEFI images never have one. |
 | `roxora-...-spi.img.sha256` | `sha256sum` output for the SPI image. |
 
 Once per release:
@@ -107,9 +111,9 @@ the meaning of a field increments `schema`.
 | `release.prerelease` | boolean | True while any image is `ci-only`, and until the maintainer marks the release as a full release. |
 | `release.url` | string | GitHub release page. |
 | `release.armbian_ref` | string | `armbian.ref` at the tagged commit. |
-| `images[].board` | string | Armbian board name, first column of `boards.conf`. |
-| `images[].board_name` | string | Board name for people, `NAME` column of `boards.conf`. |
-| `images[].vendor` | string | Board maker, `VENDOR` column of `boards.conf`. Catalogs from releases before 2026.11.1 do not have it; consumers then take the first word of `board_name`. |
+| `images[].board` | string | Armbian board name, or `uefi-<soc>` for a UEFI image; first column of `boards.conf`. |
+| `images[].board_name` | string | Board name for people, `NAME` column of `boards.conf`. For a UEFI image it names the boards it is for (`RK3576 boards with UEFI firmware`). |
+| `images[].vendor` | string | Board maker, `VENDOR` column of `boards.conf`; `Generic` for a UEFI image. Catalogs from releases before 2026.11.1 do not have it; consumers then take the first word of `board_name`. |
 | `images[].soc` | string | SoC, `SOC` column of `boards.conf`. |
 | `images[].release` | string | Ubuntu codename. |
 | `images[].ubuntu_version` | string | Ubuntu version number. |

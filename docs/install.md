@@ -29,7 +29,9 @@ The ROCK 4D starts from SPI NOR flash, UFS or USB, never directly from an SD
 card. An SD card boots only through a U-Boot in the SPI NOR flash. If the
 flash is blank, or holds an EDK2 (UEFI) firmware, write Roxora's `-spi.img`
 to it first, with Roxora Imager over USB (Maskrom mode). Skip this step if
-the flash already holds a mainline U-Boot.
+the flash already holds a mainline U-Boot. To keep an EDK2 firmware in the
+flash, use the UEFI image instead (see
+[RK3576 boards with UEFI firmware](#rk3576-boards-with-uefi-firmware)).
 
 The ArmSoM CM5-IO needs no bootloader step: its U-Boot is on the SD card or
 eMMC with the image. It prefers eMMC over SD, so if the eMMC holds a bootable
@@ -49,6 +51,40 @@ Any of these works:
 
 To install to the CM5-IO's eMMC instead, write the image there with Roxora
 Imager over USB (Maskrom mode).
+
+## RK3576 boards with UEFI firmware
+
+The `uefi-rk3576` image is for any RK3576 board that runs UEFI firmware, for
+example [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576) on the
+Radxa ROCK 4D or the ArmSoM CM5-IO. It has no bootloader of its own and no
+`-spi.img` file: the firmware on the board starts GRUB from the image, and
+gives the kernel the board's device tree.
+
+1. Install the firmware first, as its project describes: for edk2-rk3576 see
+   its [releases](https://github.com/gahingwoo/edk2-rk3576/releases) and
+   [flashing guide](https://github.com/gahingwoo/edk2-rk3576/blob/main/docs/FLASHING.md).
+   On the ROCK 4D it goes
+   into the SPI NOR flash; on the CM5-IO onto the eMMC or an SD card. Check
+   that the board shows the firmware's front page on HDMI or on the serial
+   console (1500000 baud) before you go on.
+2. Download and check
+   `roxora-uefi-rk3576-<release>-edge-<version>.img.xz` as in step 1 above.
+3. Write the image to a USB drive, an NVMe drive or an SD card, the same way
+   as in step 3 above (Roxora Imager, Raspberry Pi Imager, or `xz -dc ... |
+   sudo dd ...`). An NVMe drive can be written in another computer with a
+   USB adapter. Do not write it over the medium that holds the firmware:
+   on the CM5-IO with the firmware on its SD card, put the image on NVMe or
+   USB; with the firmware on the eMMC, the SD card is free.
+4. Connect the drive and power the board on. The firmware starts
+   `\EFI\BOOT\BOOTAA64.EFI` from the drives in its boot order; if it starts
+   another system, choose the drive in its boot manager. GRUB shows its menu for
+   three seconds, then starts the newest kernel. The first boot then goes on
+   as in step 4 below; the host name is `uefi-rk3576`.
+
+Kernel updates through `apt` rewrite the GRUB menu for the new kernel.
+Armbian's kernel package replaces the kernel it updates (one package per
+kernel branch, not one per version), so the menu lists one kernel per
+installed branch. GRUB itself is updated from the Ubuntu archive.
 
 ## 4. First boot
 
