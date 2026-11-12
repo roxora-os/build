@@ -159,13 +159,13 @@ page shows it.
 
 A UEFI image is not for one board but for every board of a SoC that runs
 UEFI firmware (see [architecture.md](architecture.md#uefi-images)). It has
-its own name, `uefi-<soc>`, and its own board file in
+its own name, `generic-<soc>-uefi`, and its own board file in
 [`userpatches/config/boards/`](../userpatches/config/boards), because Armbian
 has no such board. Everything UEFI images share is in
 [`userpatches/roxora/uefi/board.inc`](../userpatches/roxora/uefi/board.inc).
 
-1. Copy [`uefi-rk3576.conf`](../userpatches/config/boards/uefi-rk3576.conf)
-   to `uefi-<soc>.conf` and set:
+1. Copy [`generic-rk3576-uefi.conf`](../userpatches/config/boards/generic-rk3576-uefi.conf)
+   to `generic-<soc>-uefi.conf` and set:
    - `BOARD_NAME`;
    - `BOARDFAMILY`: the Armbian family whose `edge` kernel the SoC's boards
      use (`rk35xx` for RK3576, `rockchip-rk3588` for RK3588; at the pinned
@@ -178,9 +178,9 @@ has no such board. Everything UEFI images share is in
 2. Add one line per Ubuntu release to `boards.conf`, with `VENDOR`
    `Generic` and a `NAME` that says which boards it is for:
 
-       uefi-rk3588      edge    noble    ci-only  rk3588  Generic RK3588 boards with UEFI firmware
+       generic-rk3588-uefi      edge    noble    ci-only  rk3588  Generic RK3588 boards with UEFI firmware
 
-3. Add `armbian-bsp-cli-uefi-<soc>-edge-grub` to
+3. Add `armbian-bsp-cli-generic-<soc>-uefi-edge-grub` to
    [`verify/reference/allowlist`](../verify/reference/allowlist) (Armbian adds
    `-grub` to the BSP package name of GRUB images).
 4. Check the family file for anything that assumes U-Boot beyond the boot

@@ -53,7 +53,7 @@
       "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-armsom-cm5-io-noble-edge-2026.11.0.verify.txt"
     },
     {
-      "board": "uefi-rk3576",
+      "board": "generic-rk3576-uefi",
       "board_name": "RK3576 boards with UEFI firmware",
       "vendor": "Generic",
       "soc": "rk3576",
@@ -61,14 +61,14 @@
       "ubuntu_version": "24.04",
       "branch": "edge",
       "kernel": "7.3.4",
-      "file": "roxora-uefi-rk3576-noble-edge-2026.11.0.img.xz",
-      "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-uefi-rk3576-noble-edge-2026.11.0.img.xz",
+      "file": "roxora-generic-rk3576-uefi-noble-edge-2026.11.0.img.xz",
+      "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-generic-rk3576-uefi-noble-edge-2026.11.0.img.xz",
       "size": 391234567,
       "sha256": "d85a07f6dd71af68c056d4dfe16f6d9201217b6a09d93002d4dce0b63239b94d",
       "extract_size": 2197815296,
       "extract_sha256": "004ce3fa670fef9f60a4fe02a5729e8d81c2e1bed1f78ca935bf0cbff2eca96e",
       "status": "ci-only",
-      "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-uefi-rk3576-noble-edge-2026.11.0.verify.txt"
+      "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-generic-rk3576-uefi-noble-edge-2026.11.0.verify.txt"
     }
   ]
 }

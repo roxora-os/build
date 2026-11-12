@@ -33,10 +33,10 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | edge | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | edge | ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | ci-only |
-| RK3576 boards with UEFI firmware (`uefi-rk3576`) | RK3576 | 24.04 (noble) | edge | ci-only |
-| RK3576 boards with UEFI firmware (`uefi-rk3576`) | RK3576 | 26.04 (resolute) | edge | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | edge | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | edge | ci-only |
 
-The `uefi-rk3576` image is for any RK3576 board that runs UEFI firmware,
+The `generic-rk3576-uefi` image is for any RK3576 board that runs UEFI firmware,
 such as [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576). It carries
 no U-Boot: the firmware starts Ubuntu's GRUB from the image and passes the
 board's device tree to the kernel. See

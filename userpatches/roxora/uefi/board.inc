@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2026 Ga Hing Woo <gahing@gahingwoo.com>
 #
-# Shared part of Roxora's UEFI board files (userpatches/config/boards/uefi-*.conf).
+# Shared part of Roxora's UEFI board files (userpatches/config/boards/generic-*-uefi.conf).
 # A board file sets BOARD_NAME, BOARDFAMILY (the Armbian family whose kernel
 # the image uses), BOOT_SOC and ROXORA_UEFI_SERIAL, then sources this file.
 #
