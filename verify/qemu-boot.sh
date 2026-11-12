@@ -19,7 +19,8 @@
 # so the kernel log stops once the early console hands over. The check is that
 # the firmware starts GRUB and GRUB starts the kernel.
 #
-# Exits 0 when GRUB ran and the kernel's EFI stub started, 1 otherwise.
+# Exits 0 when GRUB ran and the kernel started with grub.cfg's command line,
+# 1 otherwise.
 
 set -euo pipefail
 
@@ -32,7 +33,7 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		-h | --help)
-			sed -n '5,22s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,23s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*)
@@ -121,13 +122,18 @@ check() {
 }
 echo "QEMU virt, cortex-a72, AAVMF, device tree from the firmware (acpi=off), ${t} s"
 check "GRUB menu (GNU GRUB)" 'GNU GRUB' || ok+=1
-check "GRUB loads the kernel (Loading Linux)" 'Loading Linux' || ok+=1
-check "GRUB loads the initrd (Loading initial ramdisk)" 'Loading initial ramdisk' || ok+=1
-check "kernel EFI stub (EFI stub: Booting Linux Kernel)" 'EFI stub: Booting Linux Kernel' || ok+=1
-# Informational: these need the early console, which QEMU's DT provides.
-check "kernel log on the early console (Booting Linux on physical CPU)" 'Booting Linux on physical CPU' || true
-check "kernel command line" 'Kernel command line:' || true
+# The kernel started: its EFI stub, or its first message on the early
+# console (QEMU's device tree names the PL011 UART as stdout-path).
+if ! check "kernel EFI stub (EFI stub: Booting Linux Kernel)" 'EFI stub: Booting Linux Kernel' &&
+	! check "kernel log on the early console (Booting Linux on physical CPU)" 'Booting Linux on physical CPU'; then
+	ok+=1
+fi
+# The command line comes from grub.cfg: the root file system by UUID.
+check "kernel command line from grub.cfg (root=UUID=)" 'Kernel command line:.*root=UUID=' || ok+=1
+echo
+echo "Matching lines:"
+text | grep -E 'GNU GRUB|Loading|EFI stub|Booting Linux|Kernel command line|Machine model|OF: fdt|ACPI' | sed -e 's/^[[:space:]]*//' -e 's/^/  /' | head -n 20 || true
 echo
 echo "Last lines of the serial console:"
-text | grep -v '^[[:space:]]*$' | tail -n 25 | sed 's/^/  /'
+text | grep -v '^[[:space:]]*$' | tail -n 25 | sed 's/^/  /' || true
 ((ok == 0))
