@@ -1,0 +1,4 @@
+# Packages Ubuntu's server image has for a release that Armbian's package
+# lists replace with something else. The extension installs them again.
+# One line per release: the codename, then the packages.
+resolute chrony

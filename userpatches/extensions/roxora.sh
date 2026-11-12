@@ -327,6 +327,18 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 		chroot_sdcard systemctl --no-reload enable motd-news.timer
 	fi
 
+	# Ubuntu defaults Armbian's package lists replace. From 26.04 Ubuntu keeps
+	# time with chrony; Armbian installs systemd-timesyncd, which chrony
+	# replaces. (Armbian also installs initramfs-tools where Ubuntu 26.04 uses
+	# dracut; that one stays: the boot path's uInitrd is made by an
+	# initramfs-tools hook.)
+	declare -a ubuntu_defaults=()
+	mapfile -t ubuntu_defaults < <(roxora_list ubuntu-defaults.list | awk -v r="${RELEASE}" '$1 == r { $1 = ""; print substr($0, 2) }' | tr ' ' '\n' | sed '/^$/d')
+	if [[ ${#ubuntu_defaults[@]} -gt 0 ]]; then
+		display_alert "Roxora" "installing Ubuntu ${RELEASE} defaults: ${ubuntu_defaults[*]}" "info"
+		chroot_sdcard_apt_get install "${ubuntu_defaults[@]}"
+	fi
+
 	# File capabilities (ping's cap_net_raw) do not survive Armbian's rootfs
 	# cache, and dpkg --verify does not see them. Run again the part of each
 	# package's postinst that sets them, the way dpkg runs it.
