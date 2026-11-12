@@ -33,11 +33,14 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # Build provenance attestations (actions/attest-build-provenance).
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           pattern: roxora-*
@@ -53,6 +56,16 @@ jobs:
           (cd release && sha256sum -- * > SHA256SUMS)
           ls -la release
           cat notes.md
+      # A signed statement of which workflow run, commit and repository built
+      # each release file; check one with
+      # gh attestation verify <file> --repo roxora-os/build
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            release/*.img.xz
+            release/*-spi.img
+            release/roxora-catalog.json
+            release/SHA256SUMS
       - name: Publish the pre-release
         env:
           GH_TOKEN: ${{ github.token }}

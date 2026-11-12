@@ -51,6 +51,10 @@ Once per release:
 | `SHA256SUMS` | `sha256sum` output for every other file in the release. |
 | `roxora-catalog.json` | The catalog described below. |
 
+The images, SPI images, `SHA256SUMS` and `roxora-catalog.json` also carry a
+build provenance attestation from the release workflow (from 2026.11.3 on),
+checked with `gh attestation verify <file> --repo roxora-os/build`.
+
 ## Pre-release and tested status
 
 - Every release is published as a GitHub pre-release until a maintainer

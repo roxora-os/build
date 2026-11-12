@@ -23,6 +23,12 @@ Ubuntu 26.04):
 
 Every line must end in `OK`.
 
+From release 2026.11.3 on, each image also has a build provenance
+attestation: a signed record of the GitHub Actions run, commit and repository
+that built it. With the GitHub CLI:
+
+    gh attestation verify roxora-<board>-<release>-edge-<version>.img.xz --repo roxora-os/build
+
 ## 2. Radxa ROCK 4D: bootloader into SPI NOR flash
 
 The ROCK 4D starts from SPI NOR flash, UFS or USB, never directly from an SD
