@@ -1,0 +1,12 @@
+# Installed by Roxora on images booted by UEFI firmware. update-grub reads
+# this after /etc/default/grub; settings not made here are Ubuntu's.
+# See https://github.com/roxora-os/build/blob/main/docs/architecture.md
+#
+# The firmware passes the board's device tree to the kernel, so GRUB loads
+# none. Kernel messages go to the serial port and the display; the login
+# prompt appears on both.
+
+GRUB_CMDLINE_LINUX_DEFAULT="earlycon console=@SERIAL@ console=tty1"
+GRUB_TERMINAL=console
+GRUB_TIMEOUT_STYLE=menu
+GRUB_TIMEOUT=3

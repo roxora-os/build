@@ -6,6 +6,7 @@
 # Roxora's own additions and the board support package
 armbian-bsp-cli-radxa-rock-4d-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
 armbian-bsp-cli-armsom-cm5-io-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
+armbian-bsp-cli-uefi-rk3576-edge-grub  board support package of the RK3576 UEFI image (Armbian adds -grub on GRUB images), filtered to its hardware parts (docs/bsp-classification.md); built with the image
 
 # Armbian's minimal package list (config/cli/noble/main/packages); plain Ubuntu packages
 alsa-utils        Armbian minimal list: audio mixer and ALSA state restore for on-board codecs

@@ -48,3 +48,10 @@
 # console autologin (also disabled with CONSOLE_AUTOLOGIN=no)
 /etc/systemd/system/getty@.service.d/override.conf
 /etc/systemd/system/serial-getty@.service.d/override.conf
+
+# UEFI images: settings and artwork of Armbian's GRUB support
+# (extensions/grub.sh); Roxora writes /etc/default/grub.d/90-roxora.cfg
+/etc/default/grub.d/98-armbian.cfg
+/usr/share/images/grub/wallpaper.png
+/usr/share/desktop-base/grub_background.sh
+/boot/grub/fonts/armbian-hidpi.pf2

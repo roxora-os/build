@@ -96,6 +96,17 @@ function extension_prepare_config__roxora() {
 	# Armbian leaves /home out when it copies the root file system into the
 	# image; the default user's home directory is made at build time.
 	declare -g INCLUDE_HOME_DIR=yes
+
+	if [[ "${ROXORA_UEFI:-no}" == yes ]]; then
+		[[ "${BOOTCONFIG}" == none && "${IMAGE_PARTITION_TABLE}" == gpt ]] ||
+			exit_with_error "Roxora: UEFI board ${BOARD} must have BOOTCONFIG=none and a GPT partition table"
+		[[ -n "${ROXORA_UEFI_SERIAL:-}" ]] ||
+			exit_with_error "Roxora: UEFI board ${BOARD} does not set ROXORA_UEFI_SERIAL"
+		display_alert "Roxora" "UEFI image: GRUB from Ubuntu, no U-Boot, device tree from the firmware" "info"
+		# Armbian's GRUB support adds these; Ubuntu's server image has none of
+		# them. cloud-init grows the root partition at the first boot.
+		remove_packages cloud-initramfs-growroot busybox efivar
+	fi
 }
 
 # Drop the distro-layer parts of the board support package before it is built,
@@ -270,15 +281,7 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	install -m 0644 "${SDCARD}/usr/share/base-files/dot.profile" "${SDCARD}/root/.profile"
 
 	# Files Armbian created outside any package.
-	declare pattern path
-	while read -r pattern; do
-		# shellcheck disable=SC2086 # the pattern is a glob on purpose
-		for path in "${SDCARD}"${pattern}; do
-			[[ -e "${path}" || -L "${path}" ]] || continue
-			display_alert "Roxora" "removing ${path#"${SDCARD}"}" "info"
-			rm -rf -- "${path}"
-		done
-	done < <(roxora_path_list rootfs-remove.list)
+	roxora_remove_listed "${SDCARD}" rootfs-remove.list
 
 	# Stock Ubuntu ships apt's archive cache directories; Armbian's cleanup
 	# removes them.
@@ -288,6 +291,7 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 	# packages they belong to are reinstalled with --force-confmiss so that
 	# deleted conffiles come back as shipped.
 	declare -a changed=() packages=()
+	declare path
 	mapfile -t changed < <(roxora_dpkg_changed_files early)
 	if [[ ${#changed[@]} -gt 0 ]]; then
 		display_alert "Roxora" "restoring ${#changed[@]} changed package files" "info"
@@ -355,6 +359,19 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 			DPKG_MAINTSCRIPT_PACKAGE_REFCOUNT=1 DPKG_MAINTSCRIPT_ARCH="${arch}" DPKG_MAINTSCRIPT_NAME=postinst \
 			DPKG_ADMINDIR=/var/lib/dpkg DPKG_ROOT= "/var/lib/dpkg/info/${pkg}.postinst" configure "${version}"
 	done
+}
+
+# Remove the paths of a list file (roxora_path_list) below a root directory.
+function roxora_remove_listed() {
+	declare root="${1}" pattern path
+	while read -r pattern; do
+		# shellcheck disable=SC2086 # the pattern is a glob on purpose
+		for path in "${root}"${pattern}; do
+			[[ -e "${path}" || -L "${path}" ]] || continue
+			display_alert "Roxora" "removing ${path#"${root}"}" "info"
+			rm -rf -- "${path}"
+		done
+	done < <(roxora_path_list "${2}")
 }
 
 # Installed packages built by Armbian that are not hardware layer.
@@ -480,6 +497,57 @@ function post_post_debootstrap_tweaks__roxora_restore_late() {
 	# could read the private keys from the download. cloud-init creates them
 	# at the first boot, as on Ubuntu's cloud images.
 	rm -f "${SDCARD}"/etc/ssh/ssh_host_*
+}
+
+# --- UEFI images (ROXORA_UEFI=yes, userpatches/roxora/uefi/board.inc) --------
+#
+# The firmware passes the device tree, so the linux-dtb package is not
+# installed: it puts a directory at /boot/dtb-<version>, and Ubuntu's
+# /etc/grub.d/10_linux would then write a "devicetree" line for it into
+# grub.cfg at the next kernel update. The kernel package carries the same
+# device trees in /usr/lib/linux-image-<version>/. The list of packages to
+# build or download is already made when these hooks run.
+function pre_install_kernel_debs__roxora_uefi_no_dtb_package() {
+	[[ "${ROXORA_UEFI:-no}" == yes ]] || return 0
+	display_alert "Roxora" "UEFI image: not installing linux-dtb" "info"
+	declare -g ROXORA_SAVED_KERNEL_BUILD_DTBS="${KERNEL_BUILD_DTBS:-yes}"
+	declare -g KERNEL_BUILD_DTBS=no
+}
+
+function post_install_kernel_debs__roxora_uefi_no_dtb_package() {
+	[[ "${ROXORA_UEFI:-no}" == yes ]] || return 0
+	declare -g KERNEL_BUILD_DTBS="${ROXORA_SAVED_KERNEL_BUILD_DTBS}"
+}
+
+# GRUB updates come from the Ubuntu archive. On upgrade, grub-efi-arm64 runs
+# grub-install again: it also refreshes EFI/BOOT/BOOTAA64.EFI (Ubuntu's
+# default), and with update_nvram false it writes no firmware boot entry.
+# Boot entries written from Linux do not reach edk2-rk3576, and its runtime
+# services fault when Linux tries.
+function post_customize_image__roxora_uefi_grub_debconf() {
+	[[ "${ROXORA_UEFI:-no}" == yes ]] || return 0
+	display_alert "Roxora" "UEFI image: GRUB updates without NVRAM writes" "info"
+	chroot_sdcard "printf '%s\n' 'grub-efi-arm64 grub2/update_nvram boolean false' 'grub-efi-arm64 grub2/no_efi_extra_removable boolean false' | debconf-set-selections"
+}
+
+# Armbian's GRUB support (extensions/grub.sh) has just written its settings
+# to /etc/default/grub.d/98-armbian.cfg (Armbian's name in the menu and the
+# EFI directory, its wallpaper and fonts, console arguments without a baud
+# rate). Replace them with Roxora's; the rest is /etc/default/grub as Ubuntu
+# ships it. update-grub runs after this, and again on every kernel update.
+function grub_early_config__roxora_settings() {
+	: "${MOUNT:?MOUNT is not set}"
+	display_alert "Roxora" "GRUB settings: console ${ROXORA_UEFI_SERIAL}" "info"
+	rm -f "${MOUNT}/etc/default/grub.d/98-armbian.cfg"
+	sed -e "s/@SERIAL@/${ROXORA_UEFI_SERIAL}/g" "${ROXORA_DIR}/uefi/grub.cfg.in" > "${MOUNT}/etc/default/grub.d/90-roxora.cfg"
+}
+
+# grub.sh copies its wallpaper and font after the hook above; nothing reads
+# them now. rootfs-remove.list lists them, so verify-image.sh checks they are
+# gone.
+function grub_pre_install__roxora_no_artwork() {
+	: "${MOUNT:?MOUNT is not set}"
+	roxora_remove_listed "${MOUNT}" rootfs-remove.list
 }
 
 # Armbian writes /etc/fstab while it partitions the image, after every other
