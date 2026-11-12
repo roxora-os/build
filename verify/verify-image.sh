@@ -420,11 +420,16 @@ if [[ "${uefi}" == yes ]]; then
 		boot_errors+=("data between 32 KiB and the first partition (a bootloader was written)")
 	fi
 	# GRUB comes from the Ubuntu archive, and its updates write no NVRAM entry.
+	# Every installed grub package is checked. 26.04 images have no
+	# grub-common, like Ubuntu's 26.04 server image.
 	grub_pkgs=()
-	for p in grub-common grub2-common grub-efi-arm64 grub-efi-arm64-bin; do
-		if ! in_root dpkg-query -W -f '${db:Status-Abbrev}' "${p}" 2> /dev/null | grep -q '^ii'; then
-			boot_errors+=("${p} is not installed")
-		elif from_ubuntu "${p}" "$(in_root apt-cache policy "${p}")"; then
+	mapfile -t grub_installed < <(awk '$1 ~ /^ii/ && $2 ~ /^grub/ { print $2 }' "${work}/dpkg-query.txt")
+	for p in grub2-common grub-efi-arm64 grub-efi-arm64-bin; do
+		[[ " ${grub_installed[*]} " == *" ${p} "* ]] || boot_errors+=("${p} is not installed")
+	done
+	for p in "${grub_installed[@]}"; do
+		p="${p%%:*}"
+		if from_ubuntu "${p}" "$(in_root apt-cache policy "${p}")"; then
 			grub_pkgs+=("${p} $(in_root dpkg-query -W -f '${Version}' "${p}")")
 		else
 			boot_errors+=("${p} is not the Ubuntu archive's")
