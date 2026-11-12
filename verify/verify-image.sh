@@ -49,7 +49,7 @@ work="$(mktemp -d)"
 loop=""
 cleanup() {
 	set +e
-	for m in "${work}/root/proc" "${work}/root/tmp" "${work}/root" "${work}/lower" "${work}/upper"; do
+	for m in "${work}/root/proc" "${work}/root/tmp" "${work}/root" "${work}/lower" "${work}/upper" "${work}/esp"; do
 		mountpoint -q "${m}" && umount -l "${m}"
 	done
 	[[ -n "${loop}" ]] && losetup -d "${loop}"
@@ -106,6 +106,16 @@ if [[ "${image}" == *.xz ]]; then
 	xz -dc "${image}" > "${work}/image.img"
 	image="${work}/image.img"
 fi
+# A UEFI image (userpatches/roxora/uefi/board.inc) has a GPT with an EFI
+# system partition and boots GRUB; the others boot a U-Boot boot script.
+ptdump="$(sfdisk -d "${image}" 2> /dev/null || true)"
+ptable="$(awk '/^label:/ { print $2 }' <<< "${ptdump}")"
+esp_num="$(awk 'tolower($0) ~ /type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b/ { sub(/ :.*/, ""); sub(/.*[^0-9]/, ""); print; exit }' <<< "${ptdump}")"
+# Start of the first partition, in bytes.
+first_start="$(awk -F'start= *' 'NF > 1 { split($2, a, ","); print a[1] * 512; exit }' <<< "${ptdump}")"
+uefi=no
+[[ -n "${esp_num}" ]] && uefi=yes
+
 loop="$(losetup -f --show -r -P "${image}")"
 udevadm settle 2> /dev/null || true
 rootpart="$(find /dev -maxdepth 1 -name "$(basename "${loop}")p*" | sort -V | tail -1)"
@@ -239,10 +249,18 @@ else
 	fi
 fi
 
+# Is the installed version of a package Ubuntu's (maintainer), and offered by
+# an Ubuntu archive? apt-cache policy output in $2.
+from_ubuntu() {
+	local inst
+	inst="$(awk '/Installed:/ { print $2 }' <<< "$2")"
+	in_root dpkg-query -W -f '${Maintainer}\n' "$1" | grep -qi ubuntu &&
+		awk -v v="${inst}" '$1 == v || ($1 == "***" && $2 == v) { f = 1; next } f && /^ +[0-9-]+ / { if ($0 ~ /ubuntu/) ok = 1; next } f { f = 0 } END { exit !ok }' <<< "$2"
+}
+
 bf="$(in_root apt-cache policy base-files)"
 bf_inst="$(awk '/Installed:/ { print $2 }' <<< "${bf}")"
-if in_root dpkg-query -W -f '${Maintainer}\n' base-files | grep -qi ubuntu &&
-	awk -v v="${bf_inst}" '$1 == v || ($1 == "***" && $2 == v) { f = 1; next } f && /^ +[0-9-]+ / { if ($0 ~ /ubuntu/) ok = 1; next } f { f = 0 } END { exit !ok }' <<< "${bf}"; then
+if from_ubuntu base-files "${bf}"; then
 	pass "apt: base-files ${bf_inst} is Ubuntu's, from the Ubuntu archive"
 else
 	fail "apt: base-files is not the Ubuntu archive's"
@@ -336,51 +354,140 @@ fi
 
 # --- 4. boot files -----------------------------------------------------------
 
-boot_errors=()
-for f in boot.scr boot.cmd armbianEnv.txt; do
-	[[ -f "${R}/boot/${f}" ]] || boot_errors+=("/boot/${f} missing")
-done
-for l in Image uInitrd dtb; do
-	if [[ ! -L "${R}/boot/${l}" ]]; then
-		boot_errors+=("/boot/${l} is not a symlink")
-	elif [[ ! -e "${R}/boot/$(readlink "${R}/boot/${l}")" ]]; then
-		boot_errors+=("/boot/${l} points at $(readlink "${R}/boot/${l}"), which is missing")
+if [[ "${uefi}" == yes ]]; then
+	# UEFI firmware on the board starts GRUB from the EFI system partition; it
+	# passes its own device tree, so GRUB loads none and there is no U-Boot.
+	boot_errors=()
+	[[ "${ptable}" == gpt ]] || boot_errors+=("partition table is '${ptable}', not gpt")
+	esppart="${loop}p${esp_num}"
+	esp_fs="$(blkid -p -s TYPE -o value "${esppart}" 2> /dev/null || true)"
+	esp_uuid="$(blkid -p -s UUID -o value "${esppart}" 2> /dev/null || true)"
+	[[ "${esp_fs}" == vfat ]] || boot_errors+=("EFI system partition ${esp_num} is '${esp_fs}', not vfat")
+	grep -Eq "^UUID=${esp_uuid}[[:space:]]+/boot/efi[[:space:]]+vfat[[:space:]]" "${R}/etc/fstab" ||
+		boot_errors+=("/etc/fstab does not mount the EFI system partition (UUID ${esp_uuid}) at /boot/efi")
+	mkdir -p "${work}/esp"
+	loader=""
+	if [[ "${esp_fs}" == vfat ]] && mount -o ro "${esppart}" "${work}/esp"; then
+		# FAT is case-insensitive; firmware looks for \EFI\BOOT\BOOTAA64.EFI.
+		loader="$(find "${work}/esp" -ipath "${work}/esp/efi/boot/bootaa64.efi" -type f | head -1)"
 	fi
-done
-# The device tree comes from armbianEnv.txt, or, when it sets none, from the
-# default environment of the U-Boot the image carries (mainline U-Boot on the
-# ROCK 4D has DEFAULT_FDT_FILE set, and Armbian leaves fdtfile out).
-ubin="$(find "${R}"/usr/lib/linux-u-boot-* -name 'u-boot-rockchip.bin' 2> /dev/null | head -1)"
-fdtfile="$(sed -n 's/^fdtfile=//p' "${R}/boot/armbianEnv.txt" 2> /dev/null | tail -1)"
-fdtsource="armbianEnv.txt"
-if [[ -z "${fdtfile}" && -n "${ubin}" ]]; then
-	fdtfile="$(grep -a -o 'fdtfile=[[:alnum:]/._-]*\.dtb' "${ubin}" | head -1 | sed 's/^fdtfile=//')"
-	fdtsource="U-Boot default environment"
-fi
-if [[ -z "${fdtfile}" ]]; then
-	boot_errors+=("neither armbianEnv.txt nor U-Boot sets fdtfile")
-elif [[ ! -f "${R}/boot/dtb/${fdtfile}" ]]; then
-	boot_errors+=("/boot/dtb/${fdtfile} (fdtfile) missing")
-fi
-kver="$(readlink "${R}/boot/Image" 2> /dev/null | sed 's/^vmlinuz-//')"
-[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
-if command -v dumpimage > /dev/null && [[ -f "${R}/boot/uInitrd" ]]; then
-	dumpimage -l "${R}/boot/uInitrd" 2> /dev/null | grep -q 'RAMDisk Image' || boot_errors+=("/boot/uInitrd is not a U-Boot ramdisk image")
-fi
-# The bootloader at 32 KiB must be the one the installed U-Boot package carries.
-if [[ -n "${ubin}" ]]; then
-	size="$(stat -c %s "${ubin}")"
-	if ! cmp -s -n "${size}" "${ubin}" <(dd if="${loop}" bs=32k skip=1 count=$(((size + 32767) / 32768)) status=none); then
-		boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
+	core="${R}/boot/grub/arm64-efi/core.efi"
+	if [[ -z "${loader}" ]]; then
+		boot_errors+=("no EFI/BOOT/BOOTAA64.EFI on the EFI system partition")
+	elif [[ "$(head -c 2 "${loader}")" != MZ ]]; then
+		boot_errors+=("EFI/BOOT/BOOTAA64.EFI is not an EFI executable")
+	elif ! cmp -s "${loader}" "${core}"; then
+		boot_errors+=("EFI/BOOT/BOOTAA64.EFI is not the GRUB image grub-install made (${core#"${R}"})")
+	fi
+	# The kernel the installed kernel package carries, and its initrd.
+	kver="$(in_root dpkg-query -L "${kpkg}" | sed -n 's|^/boot/vmlinuz-||p')"
+	kver="${kver%%$'\n'*}"
+	[[ -n "${kver}" && -f "${R}/boot/vmlinuz-${kver}" ]] || boot_errors+=("no /boot/vmlinuz-<version> from ${kpkg}")
+	[[ -f "${R}/boot/initrd.img-${kver}" ]] || boot_errors+=("/boot/initrd.img-${kver} missing")
+	[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
+	# grub.cfg is update-grub's, for that kernel, with Roxora's arguments.
+	cfg="${R}/boot/grub/grub.cfg"
+	root_uuid="$(blkid -p -s UUID -o value "${rootpart}" 2> /dev/null || true)"
+	cmdline="$(sed -n 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"$/\1/p' "${R}/etc/default/grub.d/90-roxora.cfg" 2> /dev/null)"
+	if [[ ! -f "${cfg}" ]]; then
+		boot_errors+=("/boot/grub/grub.cfg missing")
+	else
+		grep -q '^### BEGIN /etc/grub.d/10_linux ###' "${cfg}" || boot_errors+=("grub.cfg was not made by update-grub (no 10_linux section)")
+		grep -Eq "^[[:space:]]*linux[[:space:]]+/boot/vmlinuz-${kver}[[:space:]]+root=UUID=${root_uuid}[[:space:]]" "${cfg}" ||
+			boot_errors+=("grub.cfg has no 'linux /boot/vmlinuz-${kver} root=UUID=${root_uuid}' line")
+		grep -Eq "^[[:space:]]*initrd[[:space:]]+/boot/initrd.img-${kver}$" "${cfg}" ||
+			boot_errors+=("grub.cfg has no 'initrd /boot/initrd.img-${kver}' line")
+		if [[ -z "${cmdline}" ]]; then
+			boot_errors+=("/etc/default/grub.d/90-roxora.cfg missing or without GRUB_CMDLINE_LINUX_DEFAULT")
+		else
+			grep -Fq -- "${cmdline}" "${cfg}" || boot_errors+=("grub.cfg does not pass '${cmdline}' to the kernel")
+		fi
+		grep -Eq '^[[:space:]]*devicetree[[:space:]]' "${cfg}" && boot_errors+=("grub.cfg loads a device tree (the firmware's must be used)")
+	fi
+	in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' 'linux-dtb-*' 2> /dev/null | grep -q '^ii' &&
+		boot_errors+=("a linux-dtb package is installed (Ubuntu's 10_linux would load its directory as device tree)")
+	# No U-Boot: no package, no boot script, nothing written before the first
+	# partition (the GPT ends at 17 KiB).
+	in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' 'linux-u-boot-*' 2> /dev/null | grep -q '^ii' &&
+		boot_errors+=("a linux-u-boot package is installed")
+	for f in boot.scr boot.cmd armbianEnv.txt uInitrd; do
+		[[ ! -e "${R}/boot/${f}" ]] || boot_errors+=("/boot/${f} exists (U-Boot boot script files)")
+	done
+	gap=$((${first_start:-0} - 32768))
+	if ((gap <= 0)); then
+		boot_errors+=("first partition starts at ${first_start:-?} bytes, no room checked before it")
+	elif ! cmp -s -n "${gap}" <(dd if="${loop}" bs=32k skip=1 count=$(((gap + 32767) / 32768)) status=none) /dev/zero; then
+		boot_errors+=("data between 32 KiB and the first partition (a bootloader was written)")
+	fi
+	# GRUB comes from the Ubuntu archive, and its updates write no NVRAM entry.
+	grub_pkgs=()
+	for p in grub-common grub2-common grub-efi-arm64 grub-efi-arm64-bin; do
+		if ! in_root dpkg-query -W -f '${db:Status-Abbrev}' "${p}" 2> /dev/null | grep -q '^ii'; then
+			boot_errors+=("${p} is not installed")
+		elif from_ubuntu "${p}" "$(in_root apt-cache policy "${p}")"; then
+			grub_pkgs+=("${p} $(in_root dpkg-query -W -f '${Version}' "${p}")")
+		else
+			boot_errors+=("${p} is not the Ubuntu archive's")
+		fi
+	done
+	in_root debconf-show grub-efi-arm64 2> /dev/null | grep -q 'grub2/update_nvram: false' ||
+		boot_errors+=("debconf grub2/update_nvram is not false (GRUB updates would write firmware boot entries)")
+	if [[ ${#boot_errors[@]} -eq 0 ]]; then
+		pass "boot: UEFI: GPT, EFI system partition ${esp_num} at /boot/efi with EFI/BOOT/BOOTAA64.EFI = GRUB's core.efi, grub.cfg from update-grub with vmlinuz and initrd.img in place for kernel ${kver}; no device tree in GRUB, no U-Boot; $(
+			IFS=,
+			echo "${grub_pkgs[*]}"
+		) from the Ubuntu archive, update_nvram false"
+	else
+		fail "boot: UEFI: ${#boot_errors[@]} problems"
+		printf '%s\n' "${boot_errors[@]}" | detail
 	fi
 else
-	boot_errors+=("no u-boot-rockchip.bin in /usr/lib/linux-u-boot-*")
-fi
-if [[ ${#boot_errors[@]} -eq 0 ]]; then
-	pass "boot: boot.scr, armbianEnv.txt, fdtfile=${fdtfile} (from ${fdtsource}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
-else
-	fail "boot: ${#boot_errors[@]} problems"
-	printf '%s\n' "${boot_errors[@]}" | detail
+	boot_errors=()
+	for f in boot.scr boot.cmd armbianEnv.txt; do
+		[[ -f "${R}/boot/${f}" ]] || boot_errors+=("/boot/${f} missing")
+	done
+	for l in Image uInitrd dtb; do
+		if [[ ! -L "${R}/boot/${l}" ]]; then
+			boot_errors+=("/boot/${l} is not a symlink")
+		elif [[ ! -e "${R}/boot/$(readlink "${R}/boot/${l}")" ]]; then
+			boot_errors+=("/boot/${l} points at $(readlink "${R}/boot/${l}"), which is missing")
+		fi
+	done
+	# The device tree comes from armbianEnv.txt, or, when it sets none, from the
+	# default environment of the U-Boot the image carries (mainline U-Boot on the
+	# ROCK 4D has DEFAULT_FDT_FILE set, and Armbian leaves fdtfile out).
+	ubin="$(find "${R}"/usr/lib/linux-u-boot-* -name 'u-boot-rockchip.bin' 2> /dev/null | head -1)"
+	fdtfile="$(sed -n 's/^fdtfile=//p' "${R}/boot/armbianEnv.txt" 2> /dev/null | tail -1)"
+	fdtsource="armbianEnv.txt"
+	if [[ -z "${fdtfile}" && -n "${ubin}" ]]; then
+		fdtfile="$(grep -a -o 'fdtfile=[[:alnum:]/._-]*\.dtb' "${ubin}" | head -1 | sed 's/^fdtfile=//')"
+		fdtsource="U-Boot default environment"
+	fi
+	if [[ -z "${fdtfile}" ]]; then
+		boot_errors+=("neither armbianEnv.txt nor U-Boot sets fdtfile")
+	elif [[ ! -f "${R}/boot/dtb/${fdtfile}" ]]; then
+		boot_errors+=("/boot/dtb/${fdtfile} (fdtfile) missing")
+	fi
+	kver="$(readlink "${R}/boot/Image" 2> /dev/null | sed 's/^vmlinuz-//')"
+	[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
+	if command -v dumpimage > /dev/null && [[ -f "${R}/boot/uInitrd" ]]; then
+		dumpimage -l "${R}/boot/uInitrd" 2> /dev/null | grep -q 'RAMDisk Image' || boot_errors+=("/boot/uInitrd is not a U-Boot ramdisk image")
+	fi
+	# The bootloader at 32 KiB must be the one the installed U-Boot package carries.
+	if [[ -n "${ubin}" ]]; then
+		size="$(stat -c %s "${ubin}")"
+		if ! cmp -s -n "${size}" "${ubin}" <(dd if="${loop}" bs=32k skip=1 count=$(((size + 32767) / 32768)) status=none); then
+			boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
+		fi
+	else
+		boot_errors+=("no u-boot-rockchip.bin in /usr/lib/linux-u-boot-*")
+	fi
+	if [[ ${#boot_errors[@]} -eq 0 ]]; then
+		pass "boot: boot.scr, armbianEnv.txt, fdtfile=${fdtfile} (from ${fdtsource}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
+	else
+		fail "boot: ${#boot_errors[@]} problems"
+		printf '%s\n' "${boot_errors[@]}" | detail
+	fi
 fi
 
 # --- 5. first boot ---------------------------------------------------------
