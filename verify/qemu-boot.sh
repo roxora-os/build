@@ -7,6 +7,9 @@
 #
 #   verify/qemu-boot.sh [--timeout SECONDS] <image.img | image.img.xz> <log>
 #
+# QEMU (default qemu-system-aarch64) and AAVMF_DIR (default /usr/share/AAVMF)
+# in the environment pick another QEMU binary or firmware directory.
+#
 # As on the boards, the firmware passes the device tree (QEMU's, with ACPI
 # off) and starts EFI/BOOT/BOOTAA64.EFI from the EFI system partition. The
 # image is not changed: QEMU writes to a throwaway copy. The serial console
@@ -29,7 +32,7 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		-h | --help)
-			sed -n '5,19s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,22s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*)
@@ -49,16 +52,18 @@ log="${args[1]}"
 	exit 2
 }
 
-code=/usr/share/AAVMF/AAVMF_CODE.fd
-vars=/usr/share/AAVMF/AAVMF_VARS.fd
+# QEMU and AAVMF_DIR can point elsewhere than the installed packages.
+qemu="${QEMU:-qemu-system-aarch64}"
+code="${AAVMF_DIR:-/usr/share/AAVMF}/AAVMF_CODE.fd"
+vars="${AAVMF_DIR:-/usr/share/AAVMF}/AAVMF_VARS.fd"
 for f in "${code}" "${vars}"; do
 	[[ -f "${f}" ]] || {
 		echo "qemu-boot.sh: ${f} missing (install qemu-efi-aarch64)" >&2
 		exit 2
 	}
 done
-command -v qemu-system-aarch64 > /dev/null || {
-	echo "qemu-boot.sh: qemu-system-aarch64 missing (install qemu-system-arm)" >&2
+command -v "${qemu}" > /dev/null || {
+	echo "qemu-boot.sh: ${qemu} missing (install qemu-system-arm)" >&2
 	exit 2
 }
 
@@ -78,7 +83,7 @@ fi
 cp "${vars}" "${work}/vars.fd"
 : > "${log}"
 
-qemu-system-aarch64 \
+"${qemu}" \
 	-machine virt,acpi=off -cpu cortex-a72 -smp 2 -m 2048 \
 	-drive if=pflash,format=raw,readonly=on,file="${code}" \
 	-drive if=pflash,format=raw,file="${work}/vars.fd" \
