@@ -904,6 +904,60 @@ whether Wi-Fi still scans and connects (`nmcli dev wifi list`). Then
 `sudo hwtool wifi country DE` without the option and reboot, to go back to
 the driver's own rules.
 
+### D21. PWM fan
+
+ROCK 4D: a 5 V fan on the 2-pin fan connector (mind the polarity).
+CM5-IO: the kit's fan on CN32. Nothing on header pin 28 of the CM5-IO.
+
+    hwtool fan show                                         # record; Fan: none
+    sudo hwtool fan enable --dry-run                        # record
+    sudo hwtool fan enable                                  # type yes
+
+Pass: the plan writes `/etc/hwtool/fan.dtso`, compiles it with `dtc -@`
+(installing `device-tree-compiler` first if missing), installs
+`/boot/overlay-user/hwtool-fan.dtbo`, adds `hwtool-fan` to `user_overlays`
+and says a reboot is needed. On the CM5-IO, `hwtool interfaces list` now shows
+pin 28 as used by the fan and `pwm2-ch6-m3` as blocked by it.
+
+Reboot.
+
+    hwtool fan show                                         # record
+    ls /sys/class/hwmon/*/name | xargs grep -l pwmfan
+    cat /sys/class/thermal/thermal_zone*/type               # find package-thermal
+
+Pass: "Fan: yes" with a speed; a `pwm-fan` cooling device with max state 4;
+package-thermal lists four `active` trips at 50, 60, 70 and 80 C plus its
+critical trip. Below 50 C the fan is off.
+
+    sudo hwtool fan set 100                                 # type yes; the fan runs at full speed
+    sudo hwtool fan set 30                                  # slower
+    sudo hwtool fan auto                                    # back to the curve
+
+Pass: the speed follows each command; `fan show` says the governor is
+`user_space` after `set` and `step_wise` after `auto`.
+
+Load the SoC (for example `stress-ng --cpu 8 --timeout 300s`) and record
+every 10 s `cat /sys/class/thermal/thermal_zone0/temp` (or the package zone)
+and `hwtool fan show | grep Fan:`. Pass: the fan steps up at about 50, 60,
+70 and 80 C and steps down about 5 C lower after the load stops.
+
+    sudo hwtool fan enable --curve 45:40,65:100             # type yes; reboot
+
+Pass: two active trips at 45 and 65 C, cooling-levels 0 102 255.
+
+    sudo hwtool fan disable                                 # type yes; reboot
+
+Pass: no pwm-fan device, `user_overlays` without `hwtool-fan`, pin 28 free
+again on the CM5-IO.
+
+Optional, a fan on a header PWM pin through a transistor (ROCK 4D, pin 35):
+`sudo hwtool fan enable --pwm pwm1-ch3-m1`, reboot, same checks.
+
+UEFI image: `sudo hwtool fan enable --dry-run` must refuse with the
+"UEFI image:" reason; `hwtool fan show` works.
+
+The connectors have no tachometer line, so there is no RPM reading.
+
 ## Part E: UEFI image
 
 For `roxora-generic-rk3576-uefi-<release>-edge-<version>.img.xz`, on a board with
