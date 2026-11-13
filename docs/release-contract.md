@@ -131,6 +131,7 @@ the meaning of a field increments `schema`.
 | `images[].extract_sha256` | string | SHA-256 of the decompressed image. |
 | `images[].status` | string | `hardware-tested` or `ci-only`. |
 | `images[].verify_url` | string | Download URL of the verify output. |
+| `images[].firmware` | string, optional | `uefi` for an image without U-Boot that boots only on a board with UEFI firmware (such as edk2-rk3576) in its SPI flash. Absent for images that carry their own bootloader. |
 | `images[].spi` | object, optional | Present only for boards with an SPI bootloader image. |
 | `images[].spi.file` | string | SPI image file name. |
 | `images[].spi.url` | string | Download URL of the SPI image. |

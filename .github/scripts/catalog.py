@@ -41,6 +41,13 @@ def read_boards(path):
     return boards
 
 
+def needs_uefi(board):
+    """True for a board file built on userpatches/roxora/uefi/board.inc: its
+    image has no U-Boot and boots only on a board with UEFI firmware."""
+    conf = pathlib.Path("userpatches/config/boards") / f"{board}.conf"
+    return conf.is_file() and "roxora/uefi/board.inc" in conf.read_text(encoding="utf-8")
+
+
 def first_field(path):
     return pathlib.Path(path).read_text(encoding="utf-8").split()[0]
 
@@ -81,6 +88,8 @@ def make(args):
             "status": "ci-only",
             "verify_url": base + f"{stem}.verify.txt",
         })
+        if needs_uefi(b["board"]):
+            images[-1]["firmware"] = "uefi"
         spi = d / f"{stem}-spi.img"
         if spi.is_file():
             images[-1]["spi"] = {
@@ -132,10 +141,18 @@ def notes(args):
     out.append("CI-verified only (built and checked by verify-image.sh, not booted yet):")
     out += [f"- {i['board_name']}: {i['file']}" for i in groups["ci-only"]] or ["- none"]
     out.append("")
-    out.append("Each image: Ubuntu {} ({}), Armbian {} kernel {}.".format(
-        c["images"][0]["ubuntu_version"], c["images"][0]["release"],
-        c["images"][0]["branch"], c["images"][0]["kernel"]) if c["images"] else "")
-    out.append("")
+    systems = dict.fromkeys(
+        "Ubuntu {} ({}) with the Armbian {} kernel {}".format(
+            i["ubuntu_version"], i["release"], i["branch"], i["kernel"])
+        for i in c["images"])
+    if systems:
+        out.append("Systems: " + "; ".join(systems) + ".")
+        out.append("")
+    uefi = [i for i in c["images"] if i.get("firmware") == "uefi"]
+    if uefi:
+        out.append("UEFI images (no U-Boot inside; the board needs UEFI firmware such as edk2-rk3576 in its SPI flash first):")
+        out += [f"- {i['board_name']}: {i['file']}" for i in uefi]
+        out.append("")
     spi = [i for i in c["images"] if i.get("spi")]
     if spi:
         out.append("SPI bootloader (written to the board's SPI flash, not to the card):")
