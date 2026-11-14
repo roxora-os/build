@@ -43,7 +43,8 @@ from Armbian's repository, which the apt pin allows for this one package, and
 fetch a model:
 
     sudo apt install charsiu
-    charsiu pull
+    sudo charsiu-get llama3.2-1b-q8      # the model directory belongs to root
+    charsiu "What is a single-board computer?"
 
 Other programs reach the Rocket driver through Mesa's Teflon delegate, and
 the Mesa in Ubuntu 24.04 is older than the Mesa releases with Rocket support.
@@ -52,7 +53,10 @@ Rockchip's kernel; [hwtool](https://github.com/roxora-os/hwtool) can switch an
 installed system to that branch and back (`hwtool kernel switch vendor`, then
 `hwtool kernel revert`).
 
-The NPU has not been tested on Roxora yet; the hardware test includes it.
+Tested on a ROCK 4D with Roxora 2026.11.3 (Ubuntu 26.04, edge kernel 7.3.3):
+`/dev/accel/accel0` and the Rocket driver are there, apt installs charsiu
+and nothing else from Armbian, and Llama 3.2 1B (Q8) answers at about
+12 tokens per second (prompt about 41). The CM5-IO has not been tested yet.
 
 ## How do I log in the first time?
 

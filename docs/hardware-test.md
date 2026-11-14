@@ -328,9 +328,13 @@ and the eMMC or NVMe drive. Before you start:
 - Every change writes a log to `/var/log/hwtool/<time>.log`. Keep the logs
   of every step; they go into the report.
 
-Install hwtool on the board from the `debs` artifact (see What you need):
+hwtool's command line package is preinstalled; `hwtool --version` shows its
+version. To test a newer one, install its `.deb` from the hwtool releases:
 
     sudo apt install ./roxora-hwtool_<version>_arm64.deb
+
+hwtool asks before every change; without a terminal (for example over
+`ssh board 'command'`) it refuses unless `--yes` is given.
 
 Recovery used below:
 
@@ -671,7 +675,7 @@ Pass: two policies, policy0 "Cortex-A53" CPUs 0-3 and policy4
     cat /sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq  # 1800000
 
 Reboot. Pass: `scaling_max_freq` is still 1800000 and
-`systemctl status hwtool-cpufreq.service` shows it ran without errors.
+`systemctl status hwtool-boot.service` shows it ran without errors.
 Then:
 
     sudo hwtool cpu set --policy policy0 --governor performance --dry-run   # warns about heat
@@ -728,8 +732,8 @@ the swap file is the one cloud-init made.
 
 Pass: `swap show` lists `/swap.img` as active with the size `swapon --show`
 prints, its fstab line (cloud-init 25.1 and later write it without
-`comment=cloudconfig`; record which), the memory size, and "zram: in use
-(armbian-zram-config)" with `/dev/zram0` active at priority 5.
+`comment=cloudconfig`; record which), the memory size, and "zram: not in
+use" (Roxora images do not carry Armbian's zram setup).
 
     sudo hwtool swap set 1G --dry-run                       # record
     sudo hwtool swap set 1G                                 # type yes
