@@ -19,13 +19,21 @@ them.
 
 One image per line of `boards.conf`:
 
-    roxora-<board>-<release>-<branch>-<version>.img.xz
+    roxora-<board>-<release>-<branch>-<version>.img.xz             command line image
+    roxora-<board>-<release>-<branch>-<flavor>-<version>.img.xz    desktop image
 
-Example: `roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz`.
+Examples: `roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz`,
+`roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.5.img.xz`.
 
 - `<board>` is the Armbian board name (`radxa-rock-4d`), or for a UEFI image
   `generic-<soc>-uefi` (`generic-rk3576-uefi`); `<release>` the Ubuntu codename (`noble`),
   `<branch>` the Armbian kernel branch (`edge`).
+- `<flavor>` is `gnome-minimal` (Ubuntu's minimal GNOME desktop) or `gnome`
+  (the full one). The command line image, flavor `cli`, has no flavor in
+  its name, as before the desktop images existed. A version starts with a
+  digit and a flavor with a letter, so the two forms cannot be mistaken for
+  each other. Every other file of an image (`.sha256`, `.verify.txt`,
+  `-spi.img`) carries the image's name, flavor included.
 - The file is a whole-disk image compressed with xz. It is written as is to
   an SD card, USB drive, eMMC or NVMe. A board image has the bootloader
   inside it at 32 KiB. A UEFI image has none: it has a GPT with an EFI
@@ -41,7 +49,7 @@ For every image:
 | `roxora-...img.xz` | The image. |
 | `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. |
 | `roxora-...verify.txt` | The output of `verify/verify-image.sh` for that image. |
-| `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. UEFI images never have one. |
+| `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. UEFI images never have one. Each flavor of a board's image has its own copy, from its own build of the same U-Boot. |
 | `roxora-...-spi.img.sha256` | `sha256sum` output for the SPI image. |
 
 Once per release:
@@ -67,9 +75,13 @@ checked with `gh attestation verify <file> --repo roxora-os/build`.
     release's image.
   - `ci-only`: the image built and passed `verify-image.sh` in CI; nobody has
     booted it yet.
+- The status is per image, flavors apart: a tested command line image says
+  nothing about the desktop image of the same board.
 - The release notes list the images in each group. The "Mark
   hardware-tested" workflow changes an image's status, and can publish a
-  beta as a release.
+  beta as a release. It takes `BOARD`, `BOARD:RELEASE`,
+  `BOARD:RELEASE:BRANCH` or `BOARD:RELEASE:BRANCH:FLAVOR`; a shorter form
+  marks every image it matches, so name the flavor when only one was tested.
 
 ## Catalog
 
@@ -96,6 +108,7 @@ the meaning of a field increments `schema`.
           "release": "noble",
           "ubuntu_version": "24.04",
           "branch": "edge",
+          "flavor": "cli",
           "kernel": "7.3.4",
           "file": "roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz",
           "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-2026.11.0.img.xz",
@@ -125,8 +138,9 @@ the meaning of a field increments `schema`.
 | `images[].release` | string | Ubuntu codename. |
 | `images[].ubuntu_version` | string | Ubuntu version number. |
 | `images[].branch` | string | Armbian kernel branch. |
+| `images[].flavor` | string, optional | `cli` for a command line image, `gnome-minimal` or `gnome` for an image with Ubuntu's GNOME desktop (`ubuntu-desktop-minimal`, `ubuntu-desktop`); `FLAVOR` column of `boards.conf`. Catalogs from releases before the desktop images do not have it; consumers then take `cli`. More flavors may be added; a consumer shows one it does not know by this name. Board, release, branch and flavor together name one image of a release. |
 | `images[].kernel` | string | Kernel version in the image (`uname -r` without the branch suffix). |
-| `images[].file` | string | Image file name. |
+| `images[].file` | string | Image file name, as under [Image files](#image-files). |
 | `images[].url` | string | Download URL of the image. |
 | `images[].size` | integer | Size of the `.img.xz` in bytes. |
 | `images[].sha256` | string | SHA-256 of the `.img.xz`, lower-case hex. |

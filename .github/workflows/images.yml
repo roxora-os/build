@@ -29,7 +29,7 @@ jobs:
       - id: boards
         name: Read boards.conf
         run: |
-          include="$(awk '!/^[[:space:]]*(#|$)/ { printf "%s{\"board\":\"%s\",\"branch\":\"%s\",\"release\":\"%s\"}", (n++ ? "," : ""), $1, $2, $3 }' boards.conf)"
+          include="$(awk '!/^[[:space:]]*(#|$)/ { printf "%s{\"board\":\"%s\",\"branch\":\"%s\",\"release\":\"%s\",\"flavor\":\"%s\",\"suffix\":\"%s\"}", (n++ ? "," : ""), $1, $2, $3, $4, ($4 == "cli" ? "" : "-" $4) }' boards.conf)"
           echo "include=[${include}]" >> "$GITHUB_OUTPUT"
           echo "[${include}]"
 
@@ -47,9 +47,12 @@ jobs:
       BOARD: ${{ matrix.board }}
       BRANCH: ${{ matrix.branch }}
       RELEASE: ${{ matrix.release }}
+      FLAVOR: ${{ matrix.flavor }}
       VERSION: ${{ inputs.version }}
       FROM_SOURCE: ${{ inputs.from_source }}
-      NAME: roxora-${{ matrix.board }}-${{ matrix.release }}-${{ matrix.branch }}-${{ inputs.version }}
+      # A desktop image has its flavor in the name; a command line image
+      # (cli) has none.
+      NAME: roxora-${{ matrix.board }}-${{ matrix.release }}-${{ matrix.branch }}${{ matrix.suffix }}-${{ inputs.version }}
     steps:
       - name: Free disk space
         run: |
@@ -76,7 +79,7 @@ jobs:
           # Releases build everything here; other runs may reuse Armbian's
           # cached kernel, U-Boot and rootfs builds from ghcr.io.
           [[ "${FROM_SOURCE}" == true ]] && extra+=(ARTIFACT_IGNORE_CACHE=yes)
-          ./build.sh "BOARD=${BOARD}" "BRANCH=${BRANCH}" "RELEASE=${RELEASE}" \
+          ./build.sh "BOARD=${BOARD}" "BRANCH=${BRANCH}" "RELEASE=${RELEASE}" "FLAVOR=${FLAVOR}" \
             "VERSION=${VERSION}" PREFER_DOCKER=no "${extra[@]}"
           ls -la output/
           df -h /
@@ -107,7 +110,8 @@ jobs:
       - name: Verify
         run: |
           set -o pipefail
-          sudo verify/verify-image.sh "output/${NAME}.img.xz" | tee "output/${NAME}.verify.txt"
+          sudo verify/verify-image.sh --flavor "${FLAVOR}" "output/${NAME}.img.xz" | tee "output/${NAME}.verify.txt"
+          df -h /
 
       - name: Boot in QEMU
         # UEFI images only: QEMU's arm64 virt machine with Ubuntu's edk2

@@ -37,11 +37,14 @@ runs without root.
 
 Add one line to [`boards.conf`](../boards.conf):
 
-    # BOARD          BRANCH  RELEASE  STATUS   SOC     VENDOR  NAME
-    radxa-rock-4d    edge    noble    ci-only  rk3576  Radxa   Radxa ROCK 4D
+    # BOARD          BRANCH  RELEASE  FLAVOR  STATUS   SOC     VENDOR  NAME
+    radxa-rock-4d    edge    noble    cli     ci-only  rk3576  Radxa   Radxa ROCK 4D
 
 - `BOARD` is Armbian's board name (the file name without extension).
 - `BRANCH` is the Armbian kernel branch, `RELEASE` the Ubuntu codename.
+- `FLAVOR` is `cli` for the command line image. Start with that one. A
+  desktop image is one more line each, with `gnome-minimal` or `gnome`,
+  once the board's display output works with the kernel branch.
 - `STATUS` is `ci-only` for a new board. It becomes `hardware-tested` only
   after [hardware-test.md](hardware-test.md) has passed on the board.
 - `SOC` is lower case (`rk3576`).
@@ -178,7 +181,7 @@ has no such board. Everything UEFI images share is in
 2. Add one line per Ubuntu release to `boards.conf`, with `VENDOR`
    `Generic` and a `NAME` that says which boards it is for:
 
-       generic-rk3588-uefi      edge    noble    ci-only  rk3588  Generic RK3588 boards with UEFI firmware
+       generic-rk3588-uefi      edge    noble    cli    ci-only  rk3588  Generic RK3588 boards with UEFI firmware
 
 3. Add `armbian-bsp-cli-generic-<soc>-uefi-edge-grub` to
    [`verify/reference/allowlist`](../verify/reference/allowlist) (Armbian adds

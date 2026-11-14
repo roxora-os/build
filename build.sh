@@ -4,14 +4,17 @@
 #
 # Build a Roxora image.
 #
-#   ./build.sh BOARD=radxa-rock-4d BRANCH=edge RELEASE=noble [VERSION=2026.11.0] [ARGS...]
+#   ./build.sh BOARD=radxa-rock-4d BRANCH=edge RELEASE=noble [FLAVOR=cli] [VERSION=2026.11.0] [ARGS...]
+#
+# FLAVOR is cli (the default), gnome-minimal or gnome, as listed in boards.conf.
 #
 # Clones armbian/build at the commit in armbian.ref into cache/armbian-build
 # (once), copies userpatches/ into it, and runs its compile.sh with the roxora
 # extension enabled. Any other KEY=VALUE arguments are passed to compile.sh.
 #
 # The finished image is written to
-# output/roxora-<board>-<release>-<branch>-<version>.img.xz with a .sha256 file.
+# output/roxora-<board>-<release>-<branch>-<version>.img.xz with a .sha256 file;
+# a desktop image has its flavor before the version (...-edge-gnome-<version>).
 #
 # Armbian's build needs root (it uses sudo) or Docker.
 
@@ -28,13 +31,14 @@ die() {
 }
 
 usage() {
-	sed -n '5,17s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+	sed -n '5,20s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 	exit "${1:-0}"
 }
 
 BOARD="${BOARD:-}"
 BRANCH="${BRANCH:-}"
 RELEASE="${RELEASE:-}"
+FLAVOR="${FLAVOR:-cli}"
 VERSION="${VERSION:-dev}"
 extensions="roxora"
 passthrough=()
@@ -45,9 +49,10 @@ for arg in "$@"; do
 		BOARD=*) BOARD="${arg#*=}" ;;
 		BRANCH=*) BRANCH="${arg#*=}" ;;
 		RELEASE=*) RELEASE="${arg#*=}" ;;
+		FLAVOR=*) FLAVOR="${arg#*=}" ;;
 		VERSION=*) VERSION="${arg#*=}" ;;
 		ENABLE_EXTENSIONS=* | EXT=*) extensions="${extensions},${arg#*=}" ;;
-		BUILD_MINIMAL=* | BUILD_DESKTOP=*) die "${arg%%=*} is fixed by Roxora (minimal images only)" ;;
+		BUILD_MINIMAL=* | BUILD_DESKTOP=*) die "${arg%%=*} is fixed by Roxora (a desktop image is FLAVOR=gnome-minimal or FLAVOR=gnome)" ;;
 		*=*) passthrough+=("${arg}") ;;
 		*) die "unknown argument '${arg}' (try --help)" ;;
 	esac
@@ -57,10 +62,20 @@ done
 [[ "${VERSION}" =~ ^[0-9A-Za-z.+~-]+$ ]] || die "VERSION '${VERSION}' has characters that do not belong in a file name"
 
 # The combination must be listed in boards.conf.
-if ! awk -v b="${BOARD}" -v br="${BRANCH}" -v r="${RELEASE}" \
-	'!/^[[:space:]]*(#|$)/ && $1 == b && $2 == br && $3 == r { found = 1 } END { exit !found }' \
+if ! awk -v b="${BOARD}" -v br="${BRANCH}" -v r="${RELEASE}" -v f="${FLAVOR}" \
+	'!/^[[:space:]]*(#|$)/ && $1 == b && $2 == br && $3 == r && $4 == f { found = 1 } END { exit !found }' \
 	"${ROOT}/boards.conf"; then
-	die "${BOARD} ${BRANCH} ${RELEASE} is not listed in boards.conf"
+	die "${BOARD} ${BRANCH} ${RELEASE} ${FLAVOR} is not listed in boards.conf"
+fi
+
+# A desktop root file system (several GiB with its seeded snaps) is built on
+# disk; Armbian would otherwise build it in memory when the host has enough
+# for a command line image.
+flavor_args=()
+suffix=""
+if [[ "${FLAVOR}" != cli ]]; then
+	flavor_args+=(FORCE_USE_RAMDISK=no)
+	suffix="-${FLAVOR}"
 fi
 
 ref="$(tr -d '[:space:]' < "${ROOT}/armbian.ref")"
@@ -97,7 +112,8 @@ trap 'rm -f "${stamp}"' EXIT
 		BOARD="${BOARD}" BRANCH="${BRANCH}" RELEASE="${RELEASE}" \
 		BUILD_MINIMAL=yes BUILD_DESKTOP=no KERNEL_CONFIGURE=no \
 		ENABLE_EXTENSIONS="${extensions}" ROXORA_VERSION="${VERSION}" \
-		COMPRESS_OUTPUTIMAGE=sha,xz EXPERT=yes \
+		ROXORA_FLAVOR="${FLAVOR}" COMPRESS_OUTPUTIMAGE=sha,xz EXPERT=yes \
+		"${flavor_args[@]}" \
 		"${passthrough[@]}"
 )
 
@@ -106,7 +122,7 @@ built="$(find "${CHECKOUT}/output/images" -maxdepth 1 -name '*.img.xz' -newer "$
 	sort -n | awk 'END { print $2 }')"
 [[ -n "${built}" ]] || die "compile.sh finished but no new image is in cache/armbian-build/output/images"
 
-name="roxora-${BOARD}-${RELEASE}-${BRANCH}-${VERSION}.img.xz"
+name="roxora-${BOARD}-${RELEASE}-${BRANCH}${suffix}-${VERSION}.img.xz"
 mkdir -p "${OUTPUT}"
 cp -f "${built}" "${OUTPUT}/${name}"
 (cd "${OUTPUT}" && sha256sum "${name}" > "${name}.sha256")
