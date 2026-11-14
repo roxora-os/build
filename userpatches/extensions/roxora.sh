@@ -388,12 +388,16 @@ function post_repo_customize_image__roxora_restore_ubuntu() {
 }
 
 # Remove the paths of a list file (roxora_path_list) below a root directory.
+# The lists name files written outside any package; a path that an installed
+# package ships stays (ubuntu-pro-client, which Ubuntu's desktop depends on,
+# ships the 20apt-esm-hook.conf that Armbian otherwise leaves behind empty).
 function roxora_remove_listed() {
 	declare root="${1}" pattern path
 	while read -r pattern; do
 		# shellcheck disable=SC2086 # the pattern is a glob on purpose
 		for path in "${root}"${pattern}; do
 			[[ -e "${path}" || -L "${path}" ]] || continue
+			chroot "${root}" dpkg-query -S "${path#"${root}"}" > /dev/null 2>&1 && continue
 			display_alert "Roxora" "removing ${path#"${root}"}" "info"
 			rm -rf -- "${path}"
 		done

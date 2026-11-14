@@ -334,7 +334,13 @@ fi
 present=()
 while read -r pattern; do
 	for path in "${R}"${pattern}; do
-		[[ -e "${path}" || -L "${path}" ]] && present+=("${path#"${R}"}")
+		[[ -e "${path}" || -L "${path}" ]] || continue
+		# The lists name files Armbian's build writes outside any package. A
+		# path an installed package ships is that package's file, and dpkg
+		# --verify below answers for its content (ubuntu-pro-client, which the
+		# desktop depends on, ships 20apt-esm-hook.conf).
+		in_root dpkg-query -S "${path#"${R}"}" > /dev/null 2>&1 && continue
+		present+=("${path#"${R}"}")
 	done
 done < <(
 	list "${LISTS}/bsp-remove.list"
@@ -377,15 +383,44 @@ fi
 tpl_errors=()
 cmp -s "${R}/usr/share/openssh/sshd_config" "${R}/etc/ssh/sshd_config" ||
 	tpl_errors+=("/etc/ssh/sshd_config differs from openssh-server's template")
-cmp -s "${R}/usr/share/libc-bin/nsswitch.conf" "${R}/etc/nsswitch.conf" ||
-	tpl_errors+=("/etc/nsswitch.conf differs from libc-bin's template")
+if [[ "${flavor}" == cli ]]; then
+	cmp -s "${R}/usr/share/libc-bin/nsswitch.conf" "${R}/etc/nsswitch.conf" ||
+		tpl_errors+=("/etc/nsswitch.conf differs from libc-bin's template")
+	nss_words="nsswitch.conf as Ubuntu generates it"
+else
+	# The desktop's name service packages (libnss-mdns, libnss-sss) add
+	# their sources in their maintainer scripts, as on Ubuntu. Every
+	# database of the template must still be there with the template's
+	# sources in the template's order; sources and databases may only be
+	# added.
+	while read -r line; do
+		tpl_errors+=("/etc/nsswitch.conf: ${line}")
+	done < <(awk '
+		{ sub(/#.*/, "") }
+		NF < 1 { next }
+		FNR == NR { tpl[$1] = $0; next }
+		{ have[$1] = $0 }
+		END {
+			for (db in tpl) {
+				if (!(db in have)) { print "database " db " of the template is gone"; continue }
+				n = split(tpl[db], want, " "); m = split(have[db], got, " "); j = 2
+				for (i = 2; i <= n; i++) {
+					while (j <= m && got[j] != want[i]) j++
+					if (j > m) { print "\"" have[db] "\" lost or reordered sources of the template (\"" tpl[db] "\")"; break }
+					j++
+				}
+			}
+		}
+	' "${R}/usr/share/libc-bin/nsswitch.conf" "${R}/etc/nsswitch.conf" | sort)
+	nss_words="nsswitch.conf is libc-bin's template with only the sources the desktop's packages add ($(sed -e 's/#.*//' "${R}/etc/nsswitch.conf" | awk '$1 == "hosts:" { $1 = ""; sub(/^ /, ""); print "hosts: " $0 }'))"
+fi
 grep -Eq '^tmpfs[[:space:]]+/tmp[[:space:]]' "${R}/etc/fstab" &&
 	tpl_errors+=("/etc/fstab mounts /tmp as tmpfs")
 for f in "${R}"/etc/update-motd.d/*; do
 	[[ -x "${f}" ]] || tpl_errors+=("${f#"${R}"} is not executable")
 done
 if [[ ${#tpl_errors[@]} -eq 0 ]]; then
-	pass "files: sshd_config and nsswitch.conf as Ubuntu generates them, motd scripts executable, /tmp on disk"
+	pass "files: sshd_config as Ubuntu generates it, ${nss_words}, motd scripts executable, /tmp on disk"
 else
 	fail "files: ${#tpl_errors[@]} differences from Ubuntu outside dpkg's checks"
 	printf '%s\n' "${tpl_errors[@]}" | detail
