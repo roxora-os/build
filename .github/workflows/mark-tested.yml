@@ -11,7 +11,7 @@ on:
         description: Release tag, for example v2026.11.0
         required: true
       boards:
-        description: Comma-separated boards that passed, for example radxa-rock-4d,armsom-cm5-io
+        description: Comma-separated images that passed, as BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH, for example radxa-rock-4d:resolute,armsom-cm5-io
         required: true
       full_release:
         description: Make it a full release if every image is hardware-tested

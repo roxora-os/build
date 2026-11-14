@@ -10,7 +10,8 @@
 "make" reads the files images.yml leaves next to each image in DIR
 (<name>.img.xz, .img.xz.sha256, .verify.txt, .extract_size, .extract_sha256,
 .kernel) and prints the catalog described in docs/release-contract.md.
-"mark" sets the listed boards to hardware-tested and prints the new catalog.
+"mark" sets the listed images (BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH)
+to hardware-tested and prints the new catalog.
 The release stays a pre-release unless every image is hardware-tested and
 --full-release is given.
 "notes" prints the release notes for a catalog.
@@ -114,13 +115,20 @@ def make(args):
 
 
 def mark(args):
+    """--tested takes comma-separated entries: BOARD for all of its images,
+    BOARD:RELEASE for one Ubuntu release, BOARD:RELEASE:BRANCH for one image
+    (for example radxa-rock-4d:resolute)."""
     catalog = json.loads(pathlib.Path(args.catalog).read_text(encoding="utf-8"))
-    tested = {b for b in args.tested.split(",") if b}
-    known = {i["board"] for i in catalog["images"]}
-    if tested - known:
-        sys.exit(f"not in this release: {', '.join(sorted(tested - known))}")
-    for i in catalog["images"]:
-        if i["board"] in tested:
+    entries = [e for e in args.tested.split(",") if e]
+    for e in entries:
+        parts = e.split(":")
+        if len(parts) > 3:
+            sys.exit(f"{e!r}: use BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH")
+        hits = [i for i in catalog["images"]
+                if [i["board"], i["release"], i["branch"]][:len(parts)] == parts]
+        if not hits:
+            sys.exit(f"not in this release: {e}")
+        for i in hits:
             i["status"] = "hardware-tested"
     all_tested = all(i["status"] == "hardware-tested" for i in catalog["images"])
     # A full release also needs the maintainer's explicit go-ahead.
