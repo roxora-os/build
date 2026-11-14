@@ -7,7 +7,8 @@ step says what passes. Keep the serial log of the whole session; it goes into
 the report.
 
 Do the parts in this order. Parts A and B are needed to mark a release
-tested; parts C and D test the tools and can follow later.
+tested; parts C and D test the tools and can follow later. A desktop image
+(`gnome-minimal`, `gnome`) is marked on its own: it needs parts A, B and F.
 
 | Part | What | Changes storage |
 | --- | --- | --- |
@@ -16,6 +17,7 @@ tested; parts C and D test the tools and can follow later.
 | C | Roxora Imager | SD card, eMMC, SPI NOR |
 | D | hwtool | overlays, kernel packages, bootloader, eMMC, NVMe |
 | E | UEFI image (`generic-rk3576-uefi`), on a board with UEFI firmware | firmware storage (SPI NOR or eMMC/SD), USB drive or NVMe |
+| F | Desktop image (`gnome-minimal`, `gnome`) | no |
 
 ## What you need
 
@@ -1099,6 +1101,75 @@ In the GTK app: the Board and Boot pages show "UEFI Firmware" with the
 firmware and the device tree source; Overlays and Pin Header show "Not Used
 on UEFI Images" with the reason. Take a screenshot of each.
 
+## Part F: desktop image
+
+For the images with `-gnome-minimal-` or `-gnome-` in their name. Needs a
+display on HDMI, a USB keyboard and mouse, and a card or drive of 16 GB or
+more. Install as in part A (or E1 and E2 for the UEFI image) and run part B
+over SSH or the serial console as for the command line image; in B3 the
+network is NetworkManager's (`nmcli device` shows the wired interface
+`connected`), and `/etc/netplan/50-cloud-init.yaml` does not exist. Then, at the display:
+
+### F1. First boot to the login screen
+
+Cold boot with the freshly written card, without logging in over SSH first.
+Pass: the login screen (GDM) appears on HDMI with the user `roxora`, on the
+Roxora Facet wallpaper. Record the time from power on to the login screen.
+
+### F2. Forced password change on the login screen
+
+Choose `roxora`, enter `roxora`. Pass: the login screen says the password
+must be changed and asks for the current password, then twice for a new
+one; with a new password the desktop starts (a Wayland session:
+`echo $XDG_SESSION_TYPE` in a terminal prints `wayland`). A wrong or too
+simple new password is refused with a message, and the login screen can be
+tried again. Log out and in again with the new password; `ssh roxora@<address>`
+takes the new password too.
+
+### F3. Seeded snaps
+
+    snap changes                        # "Initialize system state" Done
+    snap list                           # firefox, snap-store, snapd, their bases
+    systemctl is-active snapd.seeded.service   # active
+
+Pass: the seed change is `Done` with no error, with the network cable
+unplugged during the first boot if you can arrange it. Record how long after
+the login screen `snap changes` reports Done. Record `snap debug confinement`
+(`partial` is expected with the edge kernel).
+
+### F4. Firefox and CJK text
+
+Start Firefox from the dash. Pass: it opens, loads a page, and shows
+Chinese, Japanese and Korean text as text, not as boxes (for example the
+main pages of zh.wikipedia.org, ja.wikipedia.org and ko.wikipedia.org).
+In a terminal:
+
+    snap run --shell firefox -c 'fc-list :lang=zh | wc -l'    # more than 0
+
+### F5. Graphics, wallpapers, Hardware Tool
+
+- Settings, About: Graphics names Mali (panfrost), not llvmpipe.
+- The desktop wallpaper is Roxora Facet, and Settings, Appearance lists the
+  other Roxora wallpapers; switching to the dark style switches the
+  wallpaper to its dark version.
+- Hardware Tool is in the application list and starts; changing something
+  asks for the password (polkit) and does what `hwtool` does on the command
+  line.
+- `gnome`: LibreOffice Writer and Thunderbird start.
+
+### F6. No waiting at boot
+
+Reboot (warm boot) and log in.
+
+    systemd-analyze                               # record
+    systemd-analyze blame | head                  # no entry near 2 min
+    systemctl is-enabled systemd-networkd.service # disabled
+    systemctl --failed                            # 0 units
+
+Pass: no unit waits two minutes
+(`systemd-networkd-wait-online.service` is not started), and the time to
+the login screen is within a few seconds of F1 without the first-boot work.
+
 ## Report and marking
 
 Send the maintainer, per board: the release and image file name, board
@@ -1110,7 +1181,10 @@ output the steps ask for.
 When parts A and B pass for a board, the maintainer runs the "Mark
 hardware-tested" workflow in roxora-os/build (Actions, Mark hardware-tested,
 Run workflow) with the release tag and the images that passed (`BOARD`,
-`BOARD:RELEASE` or `BOARD:RELEASE:BRANCH`). That changes their status in the
-release's catalog and notes; whether it is a release or a beta does not
-depend on it. The row's `STATUS` in `boards.conf` is set to
-`hardware-tested` at the same time.
+`BOARD:RELEASE`, `BOARD:RELEASE:BRANCH` or `BOARD:RELEASE:BRANCH:FLAVOR`),
+flavor included: for example `radxa-rock-4d:resolute:edge:cli`, or
+`radxa-rock-4d:resolute:edge:gnome-minimal` when part F passed too. A
+shorter entry such as `radxa-rock-4d:resolute` marks every flavor. That
+changes their status in the release's catalog and notes; whether it is a
+release or a beta does not depend on it. The row's `STATUS` in `boards.conf`
+is set to `hardware-tested` at the same time.

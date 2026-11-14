@@ -5,19 +5,45 @@ have also been tested on a board: the Download page and the release notes say
 which. With an image that has not, keep a way back (another SD card, or the
 board's vendor image).
 
+## Which image
+
+Each board has up to three images per Ubuntu release. They are the same
+system underneath: the same kernel, the same updates, the same `roxora`
+account.
+
+- Command line (`roxora-<board>-<release>-edge-<version>.img.xz`): no
+  desktop, close to Ubuntu's server image. For a board used over SSH or the
+  serial console, and the smallest download. It fits a 4 GB card.
+- GNOME minimal (`...-edge-gnome-minimal-<version>.img.xz`): Ubuntu's
+  desktop with Firefox, the App Center, Files, Settings, a terminal and a
+  text editor (`ubuntu-desktop-minimal`). Pick this for a desktop; more
+  applications can be installed later.
+- GNOME (`...-edge-gnome-<version>.img.xz`): the full Ubuntu desktop
+  (`ubuntu-desktop`), which adds LibreOffice, Thunderbird and the other
+  applications of a default Ubuntu installation.
+
+A desktop image needs a card or drive of 16 GB or more, and a display on
+HDMI with a keyboard and mouse. Desktop images are built with the `edge`
+kernel only. You can also start from the command line image and add the
+desktop later with `sudo apt install ubuntu-desktop-minimal`; the
+[FAQ](faq.md#are-there-desktop-images) says what differs then.
+
 ## 1. Download
 
 Pick the image for your board from the website's Download page
 (https://roxora-os.github.io/download/) or from the
 [releases](https://github.com/roxora-os/build/releases). Download the
 `.img.xz` file and its `.sha256` file. For the Radxa ROCK 4D also download
-the `-spi.img` file and its `.sha256` file.
+the `-spi.img` file and its `.sha256` file; the three images of one board,
+Ubuntu release and Roxora release come with the same bootloader, under each
+image's name.
 
 Roxora Imager downloads and checks the files itself; you can skip to step 3
 if you use it.
 
 Check the files (`<release>` is `noble` for Ubuntu 24.04 or `resolute` for
-Ubuntu 26.04):
+Ubuntu 26.04; a desktop image has `-gnome-minimal` or `-gnome` after
+`edge`):
 
     sha256sum -c roxora-<board>-<release>-edge-<version>.img.xz.sha256
     sha256sum -c roxora-<board>-<release>-edge-<version>-spi.img.sha256   # ROCK 4D
@@ -141,6 +167,30 @@ connect the board to a network you do not trust.
 The image includes `hwtool` for the board's hardware settings: `hwtool info`
 shows what it found, and `hwtool --help` lists what it can change.
 
+### First boot of a desktop image
+
+A desktop image starts the login screen (GDM) on HDMI. Choose the user
+`roxora` and enter the password `roxora`. The login screen then says the
+password must be changed: enter `roxora` once more as the current password,
+then a new password twice; Ubuntu's password rules apply. After that the
+desktop starts.
+
+The first boot takes a few minutes longer than later ones. Besides growing
+the root file system, snapd installs the snaps that are in the image
+(Firefox, the App Center and the snaps they need); until it has finished,
+their icons are missing from the application list or do not start. No
+network is needed for that.
+
+SSH works as on the command line image, with the same account; changing the
+password over SSH or on the console first also counts for the login screen.
+The network is run by NetworkManager, as on any Ubuntu desktop: wired
+Ethernet gets its address by DHCP, and Wi-Fi is set up from the system menu.
+
+Hardware Tool (the GTK app of `hwtool`) is in the application list, and the
+`hwtool` command works as on the command line image. The wallpaper is
+Roxora's Facet; the other Roxora wallpapers and Ubuntu's are in Settings,
+Appearance.
+
 ## 5. Updates
 
 Ubuntu packages come from the Ubuntu archive, and the kernel, device tree,
@@ -149,7 +199,8 @@ U-Boot and firmware packages from Armbian's repository:
     sudo apt update && sudo apt full-upgrade
 
 Security updates install automatically (unattended-upgrades), as on Ubuntu
-server.
+server. On a desktop image the snaps update on their own from the snap
+store, as on Ubuntu.
 
 ## Problems
 
