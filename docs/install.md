@@ -1,9 +1,9 @@
 # Installing Roxora
 
-Every Roxora image is built and checked in CI before it is released. Some
-have also been tested on a board: the Download page and the release notes say
-which. With an image that has not, keep a way back (another SD card, or the
-board's vendor image).
+Every Roxora image is built and checked in CI before it is released; the
+release notes say which ones have also been booted on a board so far. Keep a
+way back (another SD card, or the board's vendor image) when you try a new
+board or release.
 
 ## Which image
 
