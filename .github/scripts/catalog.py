@@ -3,8 +3,8 @@
 # Copyright (c) 2026 Ga Hing Woo <gahing@gahingwoo.com>
 """Write roxora-catalog.json and the release notes for a release.
 
-    catalog.py make  --dir DIR --tag vYYYY.MM.N --boards boards.conf --ref armbian.ref
-    catalog.py mark  --catalog roxora-catalog.json --tested BOARD[,BOARD...] [--full-release]
+    catalog.py make  --dir DIR --tag vYYYY.MM.N[-beta.N] --boards boards.conf --ref armbian.ref
+    catalog.py mark  --catalog roxora-catalog.json --tested IMAGE[,IMAGE...] [--full-release]
     catalog.py notes --catalog roxora-catalog.json
 
 "make" reads the files images.yml leaves next to each image in DIR
@@ -12,8 +12,9 @@
 .kernel) and prints the catalog described in docs/release-contract.md.
 "mark" sets the listed images (BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH)
 to hardware-tested and prints the new catalog.
-The release stays a pre-release unless every image is hardware-tested and
---full-release is given.
+A tag vYYYY.MM.N makes a release; vYYYY.MM.N-beta.N makes a beta, published
+as a GitHub pre-release. "mark" leaves that as it is, unless --full-release
+turns a beta into a release.
 "notes" prints the release notes for a catalog.
 """
 
@@ -26,7 +27,7 @@ import sys
 
 REPO = "roxora-os/build"
 UBUNTU_VERSIONS = {"noble": "24.04", "resolute": "26.04"}
-TAG_RE = re.compile(r"^v(\d{4}\.\d{2}\.\d+)$")
+TAG_RE = re.compile(r"^v(\d{4}\.\d{2}\.\d+(-beta\.\d+)?)$")
 
 
 def read_boards(path):
@@ -56,8 +57,9 @@ def first_field(path):
 def make(args):
     m = TAG_RE.match(args.tag)
     if not m:
-        sys.exit(f"tag {args.tag!r} is not vYYYY.MM.N")
+        sys.exit(f"tag {args.tag!r} is not vYYYY.MM.N or vYYYY.MM.N-beta.N")
     version = m.group(1)
+    beta = m.group(2) is not None
     base = f"https://github.com/{REPO}/releases/download/{args.tag}/"
     d = pathlib.Path(args.dir)
     images = []
@@ -105,7 +107,9 @@ def make(args):
             "tag": args.tag,
             "version": version,
             "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-            "prerelease": True,
+            # A release once its images pass the checks in CI (and the QEMU
+            # boot for UEFI images); a beta when the tag says so.
+            "prerelease": beta,
             "url": f"https://github.com/{REPO}/releases/tag/{args.tag}",
             "armbian_ref": pathlib.Path(args.ref).read_text(encoding="utf-8").strip(),
         },
@@ -130,9 +134,8 @@ def mark(args):
             sys.exit(f"not in this release: {e}")
         for i in hits:
             i["status"] = "hardware-tested"
-    all_tested = all(i["status"] == "hardware-tested" for i in catalog["images"])
-    # A full release also needs the maintainer's explicit go-ahead.
-    catalog["release"]["prerelease"] = not (all_tested and args.full_release)
+    if args.full_release:
+        catalog["release"]["prerelease"] = False
     print(json.dumps(catalog, indent=2))
 
 
@@ -169,7 +172,7 @@ def notes(args):
     out.append("Check a download with `sha256sum -c <file>.sha256`. The verify output of each image is attached as <file>.verify.txt.")
     if r["prerelease"]:
         out.append("")
-        out.append("This is a pre-release: not every image has been tested on hardware.")
+        out.append("This is a beta. Use the newest release unless you want to try what comes next.")
     print("\n".join(out))
 
 
@@ -185,7 +188,7 @@ def main():
     k.add_argument("--catalog", required=True)
     k.add_argument("--tested", required=True)
     k.add_argument("--full-release", action="store_true",
-                   help="allow a full release once every image is hardware-tested")
+                   help="publish a beta as a release")
     n = sub.add_parser("notes")
     n.add_argument("--catalog", required=True)
     args = p.parse_args()

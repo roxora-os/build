@@ -55,18 +55,21 @@ The images, SPI images, `SHA256SUMS` and `roxora-catalog.json` also carry a
 build provenance attestation from the release workflow (from 2026.11.3 on),
 checked with `gh attestation verify <file> --repo roxora-os/build`.
 
-## Pre-release and tested status
+## Releases, betas and tested status
 
-- Every release is published as a GitHub pre-release until a maintainer
-  has run [hardware-test.md](hardware-test.md) on each of its boards and the
-  boards passed.
+- A tag `vYYYY.MM.N` publishes a release: every image in it built and passed
+  `verify-image.sh` in CI, and the UEFI images booted in QEMU
+  (`verify/qemu-boot.sh`). A tag `vYYYY.MM.N-beta.N` publishes a beta, as a
+  GitHub pre-release; its file names carry the same version, for example
+  `roxora-radxa-rock-4d-resolute-edge-2026.12.1-beta.1.img.xz`.
 - Each image carries a `status`:
   - `hardware-tested`: hardware-test.md passed on that board with this
     release's image.
   - `ci-only`: the image built and passed `verify-image.sh` in CI; nobody has
     booted it yet.
-- The release notes list the boards in each group. A release is marked as a
-  full release only when every image in it is `hardware-tested`.
+- The release notes list the images in each group. The "Mark
+  hardware-tested" workflow changes an image's status, and can publish a
+  beta as a release.
 
 ## Catalog
 
@@ -80,7 +83,7 @@ the meaning of a field increments `schema`.
         "tag": "v2026.11.0",
         "version": "2026.11.0",
         "date": "2026-11-20",
-        "prerelease": true,
+        "prerelease": false,
         "url": "https://github.com/roxora-os/build/releases/tag/v2026.11.0",
         "armbian_ref": "<full armbian/build commit SHA the images were built from>"
       },
@@ -112,7 +115,7 @@ the meaning of a field increments `schema`.
 | `release.tag` | string | Git tag. |
 | `release.version` | string | Version, tag without `v`. |
 | `release.date` | string | Release date, `YYYY-MM-DD`, UTC. |
-| `release.prerelease` | boolean | True while any image is `ci-only`, and until the maintainer marks the release as a full release. |
+| `release.prerelease` | boolean | True for a beta (tag `vYYYY.MM.N-beta.N`), false for a release. |
 | `release.url` | string | GitHub release page. |
 | `release.armbian_ref` | string | `armbian.ref` at the tagged commit. |
 | `images[].board` | string | Armbian board name, or `generic-<soc>-uefi` for a UEFI image; first column of `boards.conf`. |
@@ -142,8 +145,8 @@ The newest release's catalog is always at
 
     https://github.com/roxora-os/build/releases/latest/download/roxora-catalog.json
 
-when the newest release is a full release. While every release is a
-pre-release, read the list of releases from the GitHub API
+(GitHub's "latest" is the newest release, never a beta). To include betas,
+read the list of releases from the GitHub API
 (`GET /repos/roxora-os/build/releases`) and take `roxora-catalog.json` from
 each release's assets.
 

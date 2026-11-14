@@ -12,11 +12,12 @@ Website: https://roxora-os.github.io
 
 ## Status
 
-Early. Pre-releases are published on the
+Releases are published on the
 [releases page](https://github.com/roxora-os/build/releases). Their images
-are built and checked in CI; none has been tested on a board yet. A release
-stays a pre-release until its images pass the
-[hardware test](docs/hardware-test.md).
+are built and checked in CI, and the UEFI images also boot in QEMU; a tag
+`vYYYY.MM.N-beta.N` makes a beta (a GitHub pre-release) instead. Images that
+have also passed the [hardware test](docs/hardware-test.md) on a board are
+marked as tested: so far the Radxa ROCK 4D with Ubuntu 26.04.
 
 Images include the command line part of
 [hwtool](https://github.com/roxora-os/hwtool), Roxora's hardware tool

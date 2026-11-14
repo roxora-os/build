@@ -1109,7 +1109,8 @@ output the steps ask for.
 
 When parts A and B pass for a board, the maintainer runs the "Mark
 hardware-tested" workflow in roxora-os/build (Actions, Mark hardware-tested,
-Run workflow) with the release tag and the board. The release becomes a full
-release when every image in it is hardware-tested and `full_release` is
-ticked. The board's `STATUS` in `boards.conf` is set to `hardware-tested` at
-the same time.
+Run workflow) with the release tag and the images that passed (`BOARD`,
+`BOARD:RELEASE` or `BOARD:RELEASE:BRANCH`). That changes their status in the
+release's catalog and notes; whether it is a release or a beta does not
+depend on it. The row's `STATUS` in `boards.conf` is set to
+`hardware-tested` at the same time.

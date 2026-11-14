@@ -1,7 +1,6 @@
 # Run after docs/hardware-test.md has passed on a board with a release's image.
-# Updates the release's catalog and notes. The release stays a pre-release
-# unless every image in it is hardware-tested and full_release is ticked;
-# no full release is made before the maintainers agree to it.
+# Updates the release's catalog and notes. full_release turns a beta
+# (pre-release) into a release; otherwise that stays as it is.
 name: Mark hardware-tested
 
 on:
@@ -14,7 +13,7 @@ on:
         description: Comma-separated images that passed, as BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH, for example radxa-rock-4d:resolute,armsom-cm5-io
         required: true
       full_release:
-        description: Make it a full release if every image is hardware-tested
+        description: Publish a beta (pre-release) as a release
         type: boolean
         default: false
 
