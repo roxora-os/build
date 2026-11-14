@@ -1,0 +1,24 @@
+# Installed by the roxora-wallpapers package. Roxora's default wallpaper
+# (Facet, light or dark with the desktop style) for the GNOME desktop, the
+# Ubuntu session and the login screen. Ubuntu sets its own in
+# 10_ubuntu-settings.gschema.override; this file is read after it, so its
+# values win. It takes effect when glib-compile-schemas next runs, which
+# installing a desktop does.
+
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/roxora/roxora-facet-light.png'
+picture-uri-dark='file:///usr/share/backgrounds/roxora/roxora-facet-dark.png'
+
+[org.gnome.desktop.background:ubuntu]
+picture-uri='file:///usr/share/backgrounds/roxora/roxora-facet-light.png'
+picture-uri-dark='file:///usr/share/backgrounds/roxora/roxora-facet-dark.png'
+
+[org.gnome.desktop.background:GNOME-Greeter]
+picture-uri='file:///usr/share/backgrounds/roxora/roxora-facet-light.png'
+picture-uri-dark='file:///usr/share/backgrounds/roxora/roxora-facet-dark.png'
+
+[org.gnome.desktop.screensaver]
+picture-uri='file:///usr/share/backgrounds/roxora/roxora-facet-light.png'
+
+[org.gnome.desktop.screensaver:ubuntu]
+picture-uri='file:///usr/share/backgrounds/roxora/roxora-facet-light.png'

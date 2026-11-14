@@ -608,6 +608,24 @@ else
 	fail "tools: hwtool ${HWTOOL_VERSION} not installed or does not run (dpkg: '${hw_inst}')"
 fi
 
+# shellcheck source=userpatches/roxora/wallpapers/wallpapers.conf
+source "${LISTS}/wallpapers/wallpapers.conf"
+wp_version="${WALLPAPERS_VERSION}+git${WALLPAPERS_DESIGN_COMMIT:0:7}"
+wp_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-wallpapers 2> /dev/null || true)"
+wp_errors=()
+[[ "${wp_inst}" == "ii  ${wp_version}" ]] || wp_errors+=("roxora-wallpapers ${wp_version} not installed (dpkg: '${wp_inst}')")
+for f in roxora-facet-light.png roxora-facet-dark.png; do
+	[[ -s "${R}/usr/share/backgrounds/roxora/${f}" ]] || wp_errors+=("/usr/share/backgrounds/roxora/${f} missing")
+done
+cmp -s "${LISTS}/wallpapers/90_roxora-wallpapers.gschema.override" "${R}/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override" ||
+	wp_errors+=("the GNOME default wallpaper override is missing or differs from userpatches/roxora/wallpapers")
+if ((${#wp_errors[@]} == 0)); then
+	pass "tools: roxora-wallpapers ${wp_version} installed, Facet the default for GNOME"
+else
+	fail "tools: wallpapers"
+	printf '%s\n' "${wp_errors[@]}" | detail
+fi
+
 # --- summary -------------------------------------------------------------------
 
 echo

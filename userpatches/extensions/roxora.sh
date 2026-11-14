@@ -458,6 +458,62 @@ function post_repo_customize_image__roxora_tools_hwtool() {
 		exit_with_error "Roxora: roxora-hwtool ${HWTOOL_VERSION} is not installed"
 }
 
+# Preinstall roxora-wallpapers, built here from roxora-os/design at a fixed
+# commit (userpatches/roxora/wallpapers/). Nothing shows on a server image;
+# with a GNOME desktop the wallpapers are in Settings and Facet is the default.
+function post_repo_customize_image__roxora_tools_wallpapers() {
+	declare WALLPAPERS_VERSION WALLPAPERS_DESIGN_COMMIT
+	declare -a WALLPAPERS_FILES=()
+	# shellcheck source=userpatches/roxora/wallpapers/wallpapers.conf
+	source "${ROXORA_DIR}/wallpapers/wallpapers.conf"
+	declare version="${WALLPAPERS_VERSION}+git${WALLPAPERS_DESIGN_COMMIT:0:7}"
+	display_alert "Roxora" "building roxora-wallpapers ${version}" "info"
+	declare work pkg entry file sum
+	work="$(mktemp -d)"
+	pkg="${work}/pkg"
+	mkdir -p "${pkg}/DEBIAN" "${pkg}/usr/share/backgrounds/roxora" "${pkg}/usr/share/doc/roxora-wallpapers" \
+		"${pkg}/usr/share/gnome-background-properties" "${pkg}/usr/share/glib-2.0/schemas"
+	for entry in "${WALLPAPERS_FILES[@]}"; do
+		read -r file sum <<< "${entry}"
+		run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${work}/${file}" \
+			"https://raw.githubusercontent.com/roxora-os/design/${WALLPAPERS_DESIGN_COMMIT}/wallpapers/${file}"
+		echo "${sum}  ${work}/${file}" | sha256sum --check --status ||
+			exit_with_error "Roxora: design ${WALLPAPERS_DESIGN_COMMIT} wallpapers/${file} does not match wallpapers.conf"
+		[[ "${file}" == *.png ]] && install -m 0644 "${work}/${file}" "${pkg}/usr/share/backgrounds/roxora/${file}"
+	done
+	install -m 0644 "${ROXORA_DIR}/wallpapers/roxora-wallpapers.xml" "${pkg}/usr/share/gnome-background-properties/roxora-wallpapers.xml"
+	install -m 0644 "${ROXORA_DIR}/wallpapers/90_roxora-wallpapers.gschema.override" \
+		"${pkg}/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override"
+	{
+		printf '%s\n' "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" \
+			"Upstream-Name: Roxora wallpapers" \
+			"Source: https://github.com/roxora-os/design/tree/${WALLPAPERS_DESIGN_COMMIT}/wallpapers" "" \
+			"Files: *" "Copyright: 2026 DavidQyn" "           2026 Ga Hing Woo" "License: CC-BY-SA-4.0" "" \
+			"License: CC-BY-SA-4.0"
+		sed -e 's/^$/./' -e 's/^/ /' "${work}/LICENSE"
+	} > "${pkg}/usr/share/doc/roxora-wallpapers/copyright"
+	cat > "${pkg}/DEBIAN/control" <<- CONTROL
+		Package: roxora-wallpapers
+		Version: ${version}
+		Architecture: all
+		Maintainer: Roxora Project <oss@gahingwoo.com>
+		Section: graphics
+		Priority: optional
+		Homepage: https://github.com/roxora-os/design
+		Description: Roxora desktop wallpapers
+		 Four wallpapers in light and dark versions for the GNOME background list,
+		 with Roxora Facet as the default wallpaper. By DavidQyn and Ga Hing Woo,
+		 CC BY-SA 4.0.
+	CONTROL
+	chmod -R u=rwX,go=rX "${pkg}"
+	dpkg-deb --root-owner-group --build "${pkg}" "${SDCARD}/tmp/roxora-wallpapers.deb" > /dev/null
+	rm -rf "${work}"
+	chroot_sdcard_apt_get install /tmp/roxora-wallpapers.deb
+	rm -f "${SDCARD}/tmp/roxora-wallpapers.deb"
+	[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' roxora-wallpapers)" == "${version}" ]] ||
+		exit_with_error "Roxora: roxora-wallpapers ${version} is not installed"
+}
+
 function post_repo_customize_image__roxora_zz_fetch_late_packages() {
 	ROXORA_LATE_DEBS="$(mktemp -d)"
 	add_cleanup_handler roxora_cleanup_late_debs

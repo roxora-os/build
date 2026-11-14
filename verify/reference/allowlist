@@ -101,6 +101,7 @@ zlib1g-dev                       kernel headers build dependency
 
 # Roxora's own tools.
 roxora-hwtool                    Roxora hardware tool, command line (userpatches/roxora/hwtool.conf)
+roxora-wallpapers                Roxora wallpapers for a GNOME desktop, built from roxora-os/design (userpatches/roxora/wallpapers/)
 
 # Ubuntu 26.04: in the 24.04 server image, not in the 26.04 one.
 initramfs-tools                  boot path: its hook makes the uInitrd U-Boot loads (26.04 Ubuntu uses dracut)

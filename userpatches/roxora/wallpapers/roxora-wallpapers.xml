@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<!-- Installed by the roxora-wallpapers package: Roxora's wallpapers in the
+     background list of GNOME Settings. CC BY-SA 4.0, DavidQyn and Ga Hing Woo. -->
+<wallpapers>
+  <wallpaper deleted="false">
+    <name>Roxora Facet</name>
+    <filename>/usr/share/backgrounds/roxora/roxora-facet-light.png</filename>
+    <filename-dark>/usr/share/backgrounds/roxora/roxora-facet-dark.png</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#eef3f1</pcolor>
+    <scolor>#12171a</scolor>
+  </wallpaper>
+  <wallpaper deleted="false">
+    <name>Roxora Strata</name>
+    <filename>/usr/share/backgrounds/roxora/roxora-strata-light.png</filename>
+    <filename-dark>/usr/share/backgrounds/roxora/roxora-strata-dark.png</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#eef3f1</pcolor>
+    <scolor>#12171a</scolor>
+  </wallpaper>
+  <wallpaper deleted="false">
+    <name>Roxora Strata with wordmark</name>
+    <filename>/usr/share/backgrounds/roxora/roxora-strata-wordmark-light.png</filename>
+    <filename-dark>/usr/share/backgrounds/roxora/roxora-strata-wordmark-dark.png</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#eef3f1</pcolor>
+    <scolor>#12171a</scolor>
+  </wallpaper>
+  <wallpaper deleted="false">
+    <name>Roxora Bands</name>
+    <filename>/usr/share/backgrounds/roxora/roxora-bands-light.png</filename>
+    <filename-dark>/usr/share/backgrounds/roxora/roxora-bands-dark.png</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#eef3f1</pcolor>
+    <scolor>#12171a</scolor>
+  </wallpaper>
+</wallpapers>

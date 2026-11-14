@@ -22,6 +22,12 @@ Images include the command line part of
 [hwtool](https://github.com/roxora-os/hwtool), Roxora's hardware tool
 (device tree overlays, kernel branch, bootloader, NPU and more), pinned in
 [`userpatches/roxora/hwtool.conf`](userpatches/roxora/hwtool.conf).
+They also include Roxora's wallpapers (by DavidQyn with Ga Hing Woo,
+CC BY-SA 4.0, from [roxora-os/design](https://github.com/roxora-os/design)),
+in a package built from a pinned commit
+([`userpatches/roxora/wallpapers/`](userpatches/roxora/wallpapers/)). They
+show only once a GNOME desktop is installed: in the background list in
+Settings, with Facet as the default.
 
 ## Supported boards
 
