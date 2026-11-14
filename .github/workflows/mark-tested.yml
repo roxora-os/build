@@ -10,7 +10,7 @@ on:
         description: Release tag, for example v2026.11.0
         required: true
       boards:
-        description: Comma-separated images that passed, as BOARD, BOARD:RELEASE or BOARD:RELEASE:BRANCH, for example radxa-rock-4d:resolute,armsom-cm5-io
+        description: Comma-separated images that passed, as BOARD, BOARD:RELEASE, BOARD:RELEASE:BRANCH or BOARD:RELEASE:BRANCH:FLAVOR (a shorter form covers every flavor), for example radxa-rock-4d:resolute:edge:cli,armsom-cm5-io
         required: true
       full_release:
         description: Publish a beta (pre-release) as a release

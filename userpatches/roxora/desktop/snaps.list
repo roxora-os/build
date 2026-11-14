@@ -1,0 +1,47 @@
+# Snaps seeded into the desktop images: they are in the image as files and
+# snapd installs them at the first boot, without a network, as on Ubuntu's
+# own desktop images.
+#
+# The list is what Ubuntu seeds on its arm64 desktop image of each release,
+# with Ubuntu's channels: the "snap:" lines of
+#   https://cdimage.ubuntu.com/releases/noble/release/ubuntu-24.04.5-desktop-arm64.manifest
+#   https://cdimage.ubuntu.com/releases/resolute/release/ubuntu-26.04.1-desktop-arm64.manifest
+# (read 2026-11-15; Ubuntu's Raspberry Pi desktop image manifests do not list
+# their snaps), which follow the desktop-minimal and desktop seeds of
+# https://git.launchpad.net/~ubuntu-core-dev/ubuntu-seeds/+git/ubuntu.
+# Left out: ubuntu-desktop-bootstrap, the installer of the live image, and
+# core22, which only the installer needs. firmware-updater is seeded on amd64
+# only.
+#
+# FLAVOR gnome-minimal: both desktop flavors. FLAVOR gnome: only the full one
+# (ubuntu-desktop).
+#
+# The build adds the base and content snaps that the listed snaps name in
+# the store on the day of the build but the list does not have, from their
+# stable channel (userpatches/roxora/desktop/snap-closure.py): Firefox, for
+# one, has moved to a newer base since Ubuntu 24.04.5 was made.
+#
+# RELEASE  FLAVOR         SNAP                       CHANNEL
+noble      gnome-minimal  snapd                      stable
+noble      gnome-minimal  core24                     stable
+noble      gnome-minimal  bare                       stable
+noble      gnome-minimal  firefox                    stable/ubuntu-24.04
+noble      gnome-minimal  gnome-46-2404              stable/ubuntu-24.04
+noble      gnome-minimal  gtk-common-themes          stable/ubuntu-24.04
+noble      gnome-minimal  mesa-2404                  stable/ubuntu-24.04
+noble      gnome-minimal  snap-store                 2/stable/ubuntu-24.04
+noble      gnome-minimal  snapd-desktop-integration  stable/ubuntu-24.04
+noble      gnome          thunderbird                stable/ubuntu-24.04
+
+resolute   gnome-minimal  snapd                      stable
+resolute   gnome-minimal  core24                     stable
+resolute   gnome-minimal  bare                       stable
+resolute   gnome-minimal  desktop-security-center    1/stable/ubuntu-26.04
+resolute   gnome-minimal  firefox                    stable/ubuntu-26.04
+resolute   gnome-minimal  gnome-46-2404              stable/ubuntu-26.04
+resolute   gnome-minimal  gtk-common-themes          stable/ubuntu-26.04
+resolute   gnome-minimal  mesa-2404                  stable/ubuntu-26.04
+resolute   gnome-minimal  prompting-client           1/stable/ubuntu-26.04
+resolute   gnome-minimal  snap-store                 2/stable/ubuntu-26.04
+resolute   gnome-minimal  snapd-desktop-integration  stable/ubuntu-26.04
+resolute   gnome          thunderbird                stable/ubuntu-26.04

@@ -1,5 +1,6 @@
 # Packages allowed in a Roxora image although they are not in the Ubuntu
-# server cloud image reference and do not match a hardware-layer pattern.
+# reference for its flavor (reference/README.md) and do not match a
+# hardware-layer pattern.
 # Format: <package> <reason>. All of them come from the Ubuntu archive unless
 # the reason says otherwise.
 
@@ -101,6 +102,7 @@ zlib1g-dev                       kernel headers build dependency
 
 # Roxora's own tools.
 roxora-hwtool                    Roxora hardware tool, command line (userpatches/roxora/hwtool.conf)
+roxora-hwtool-gtk                Roxora hardware tool, GTK app, in the desktop images (userpatches/roxora/hwtool.conf)
 roxora-wallpapers                Roxora wallpapers for a GNOME desktop, built from roxora-os/design (userpatches/roxora/wallpapers/)
 
 # Ubuntu 26.04: in the 24.04 server image, not in the 26.04 one.
@@ -109,3 +111,10 @@ apt-utils                        Armbian minimal list (in Ubuntu's 24.04 server 
 libdialog15                      dependency of dialog (26.04)
 libdwarves1                      kernel headers build dependency (pahole) for the ROCK 4D Wi-Fi driver (26.04)
 libnl-genl-3-200                 dependency of iw (26.04)
+
+# Desktop images (24.04): recommended by ubuntu-desktop-minimal on arm64, so
+# "apt install ubuntu-desktop-minimal" brings them; Ubuntu's Raspberry Pi
+# desktop image leaves them out.
+protection-domain-mapper         Recommends of ubuntu-desktop-minimal on arm64 (24.04): Qualcomm service helper, idle on Rockchip
+qrtr-tools                       Recommends of ubuntu-desktop-minimal on arm64 (24.04): Qualcomm IPC router tools, idle on Rockchip
+libqrtr1                         dependency of qrtr-tools

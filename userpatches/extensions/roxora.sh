@@ -18,6 +18,8 @@
 # shellcheck disable=SC2034,SC2317,SC2016
 
 declare -g ROXORA_DIR="${USERPATCHES_PATH}/roxora"
+# cli, gnome-minimal or gnome (boards.conf); build.sh passes it.
+declare -g ROXORA_FLAVOR="${ROXORA_FLAVOR:-cli}"
 
 # Where the hardware-layer packages come from (HW_REPO, HW_REPO_ORIGIN, ...).
 # shellcheck source=userpatches/roxora/hardware-repo.conf
@@ -54,19 +56,23 @@ function roxora_path_list() {
 eval "function post_family_tweaks_bsp__roxora_zz_list_$(sha256sum "${ROXORA_DIR}/bsp-remove.list" | cut -c1-16)() { :; }"
 
 function extension_prepare_config__roxora() {
-	display_alert "Roxora" "${BOARD} ${BRANCH} ${RELEASE} ${ROXORA_VERSION:-dev}" "info"
+	display_alert "Roxora" "${BOARD} ${BRANCH} ${RELEASE} ${ROXORA_FLAVOR} ${ROXORA_VERSION:-dev}" "info"
 
 	if [[ ${#roxora_missing_overrides[@]} -gt 0 ]]; then
 		exit_with_error "Roxora: armbian/build no longer defines ${roxora_missing_overrides[*]}; review the armbian-config override"
 	fi
 
-	if ! awk -v b="${BOARD}" -v br="${BRANCH}" -v r="${RELEASE}" \
-		'!/^[[:space:]]*(#|$)/ && $1 == b && $2 == br && $3 == r { found = 1 } END { exit !found }' \
+	[[ "${ROXORA_FLAVOR}" =~ ^(cli|gnome-minimal|gnome)$ ]] ||
+		exit_with_error "Roxora: unknown flavor '${ROXORA_FLAVOR}' (cli, gnome-minimal, gnome)"
+	if ! awk -v b="${BOARD}" -v br="${BRANCH}" -v r="${RELEASE}" -v f="${ROXORA_FLAVOR}" \
+		'!/^[[:space:]]*(#|$)/ && $1 == b && $2 == br && $3 == r && $4 == f { found = 1 } END { exit !found }' \
 		"${ROXORA_DIR}/boards.conf"; then
-		exit_with_error "Roxora: ${BOARD} ${BRANCH} ${RELEASE} is not in boards.conf"
+		exit_with_error "Roxora: ${BOARD} ${BRANCH} ${RELEASE} ${ROXORA_FLAVOR} is not in boards.conf"
 	fi
+	# Armbian's own desktop support (its desktop packages and settings) is
+	# never used: a desktop flavor is Ubuntu's desktop on the same base.
 	[[ "${BUILD_MINIMAL}" == "yes" && "${BUILD_DESKTOP}" == "no" ]] ||
-		exit_with_error "Roxora builds minimal server images only (BUILD_MINIMAL=yes BUILD_DESKTOP=no)"
+		exit_with_error "Roxora builds on Armbian's minimal image only (BUILD_MINIMAL=yes BUILD_DESKTOP=no)"
 
 	# Ubuntu's own base-files and /etc/os-release, not armbian-base-files.
 	declare -g KEEP_ORIGINAL_OS_RELEASE="yes"
@@ -213,13 +219,26 @@ function custom_apt_repo__roxora_pin_armbian() {
 	rm -f "${SDCARD}"/etc/apt/sources.list.d/armbian.sources*
 }
 
+# The desktop flavors seed snaps with "snap prepare-image", run on the build
+# host.
+function add_host_dependencies__roxora_snapd() {
+	[[ "${ROXORA_FLAVOR:-cli}" == cli ]] && return 0
+	EXTRA_BUILD_DEPS+=("snapd")
+}
+
 # Seed cloud-init for the first boot and create the default account.
 function post_customize_image__roxora_cloud_init() {
 	display_alert "Roxora" "seeding cloud-init" "info"
 	install -D -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${SDCARD}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
 	install -d -m 0755 "${SDCARD}/var/lib/cloud/seed/nocloud"
 	install -m 0644 "${ROXORA_DIR}/cloud-init/user-data" "${SDCARD}/var/lib/cloud/seed/nocloud/user-data"
-	install -m 0644 "${ROXORA_DIR}/cloud-init/network-config" "${SDCARD}/var/lib/cloud/seed/nocloud/network-config"
+	if [[ "${ROXORA_FLAVOR}" == cli ]]; then
+		install -m 0644 "${ROXORA_DIR}/cloud-init/network-config" "${SDCARD}/var/lib/cloud/seed/nocloud/network-config"
+	else
+		# NetworkManager runs the network on a desktop (see
+		# post_repo_customize_image__roxora_task_desktop).
+		install -m 0644 "${ROXORA_DIR}/desktop/99-roxora-desktop.cfg" "${SDCARD}/etc/cloud/cloud.cfg.d/99-roxora-desktop.cfg"
+	fi
 	sed -e "s/@HOSTNAME@/${HOST}/g" "${ROXORA_DIR}/cloud-init/meta-data" > "${SDCARD}/var/lib/cloud/seed/nocloud/meta-data"
 
 	# Default account: user "roxora", password "roxora", which must be changed
@@ -440,27 +459,109 @@ function roxora_dpkg_changed_files() {
 declare -g -a ROXORA_LATE_PACKAGES=("dpkg" "libc-bin")
 declare -g ROXORA_LATE_DEBS=""
 
-# Preinstall the hwtool command line package (userpatches/roxora/hwtool.conf).
+# The desktop flavors: Ubuntu's GNOME desktop on the image built so far.
+# Runs after the Ubuntu files are restored (the hooks of one hook point run
+# in the order of their names) and before Roxora's tools are installed.
+function post_repo_customize_image__roxora_task_desktop() {
+	[[ "${ROXORA_FLAVOR}" == cli ]] && return 0
+	declare meta="ubuntu-desktop-minimal"
+	[[ "${ROXORA_FLAVOR}" == gnome ]] && meta="ubuntu-desktop"
+	display_alert "Roxora" "desktop: installing ${meta} with its recommended packages" "info"
+	# The metapackage with its Recommends, as "apt install ${meta}" gives on
+	# a running system. Its firefox and thunderbird packages only install
+	# the snaps of the same name, and skip that where no snapd runs, as here;
+	# the snaps are seeded below instead.
+	chroot_sdcard_apt_get -o APT::Install-Recommends=true install "${meta}"
+	declare pkg
+	for pkg in "${meta}" gdm3 gnome-shell network-manager snapd fonts-noto-cjk; do
+		chroot_sdcard_with_stdout dpkg-query -W -f '${db:Status-Abbrev}' "${pkg}" 2> /dev/null | grep -q '^ii' ||
+			exit_with_error "Roxora: ${meta} did not bring ${pkg}"
+	done
+
+	# NetworkManager runs every network device, through the netplan file of
+	# ubuntu-settings. Armbian enabled systemd-networkd for the command line
+	# image; Ubuntu's systemd package does not enable it (netplan starts it
+	# when a configuration asks for it), and its wait-online service would
+	# hold every boot for two minutes waiting for links it does not manage.
+	grep -qs '^[[:space:]]*renderer:[[:space:]]*NetworkManager' "${SDCARD}/usr/lib/netplan/00-network-manager-all.yaml" ||
+		exit_with_error "Roxora: ubuntu-settings no longer makes NetworkManager the netplan renderer"
+	chroot_sdcard systemctl --no-reload disable systemd-networkd.service systemd-networkd-wait-online.service
+
+	# The groups Ubuntu's desktop adds to its first user.
+	declare group
+	for group in lpadmin users; do
+		chroot_sdcard_with_stdout getent group "${group}" > /dev/null && chroot_sdcard usermod --append --groups "${group}" roxora
+	done
+
+	roxora_seed_snaps
+}
+
+# Seed the snaps of userpatches/roxora/desktop/snaps.list the way Ubuntu's
+# image builds do: a classic seed under /var/lib/snapd/seed with the
+# generic-classic model, which snapd installs at the first boot without a
+# network. The fonts are installed by then, so snapd gives the snaps the
+# system's font directories.
+function roxora_seed_snaps() {
+	declare -a wanted=() snaps=() args=()
+	mapfile -t wanted < <(roxora_list desktop/snaps.list | awk -v r="${RELEASE}" -v f="${ROXORA_FLAVOR}" \
+		'$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3 "=" $4 }')
+	[[ ${#wanted[@]} -gt 0 ]] || exit_with_error "Roxora: desktop/snaps.list has no snaps for ${RELEASE} ${ROXORA_FLAVOR}"
+	command -v snap > /dev/null || exit_with_error "Roxora: the snap command is missing on the build host (install snapd)"
+	# Bases and content snaps the listed snaps need today.
+	# shellcheck disable=SC2153 # ARCH is armbian/build's
+	mapfile -t snaps < <(python3 "${ROXORA_DIR}/desktop/snap-closure.py" "${ARCH}" "${wanted[@]}")
+	[[ ${#snaps[@]} -ge ${#wanted[@]} ]] || exit_with_error "Roxora: could not resolve the snaps to seed"
+	display_alert "Roxora" "desktop: seeding snaps ${snaps[*]}" "info"
+	declare snap
+	for snap in "${snaps[@]}"; do
+		args+=("--snap=${snap}")
+	done
+	declare seed="${SDCARD}/var/lib/snapd/seed"
+	[[ ! -e "${seed}/seed.yaml" && ! -e "${SDCARD}/var/lib/snapd/state.json" ]] ||
+		exit_with_error "Roxora: the image already has a snap seed or snapd state"
+	run_host_command_logged snap prepare-image --classic --arch="${ARCH}" --channel=stable "${args[@]}" \
+		"${ROXORA_DIR}/desktop/generic-classic.model" "${SDCARD}"
+	[[ -s "${seed}/seed.yaml" ]] || exit_with_error "Roxora: snap prepare-image wrote no ${seed#"${SDCARD}"}/seed.yaml"
+	chown -R root:root "${seed}"
+	run_host_command_logged snap debug validate-seed "${seed}/seed.yaml"
+	for snap in "${snaps[@]}"; do
+		grep -q "^- name: ${snap%%=*}\$" "${seed}/seed.yaml" || exit_with_error "Roxora: ${snap%%=*} is not in the snap seed"
+	done
+}
+
+# Preinstall hwtool (userpatches/roxora/hwtool.conf): the command line
+# package in every image, and the GTK app in the desktop flavors.
 # Runs after the Ubuntu files are restored, so dpkg --verify sees it as
 # installed, and before the late packages are fetched.
 function post_repo_customize_image__roxora_tools_hwtool() {
-	declare HWTOOL_VERSION HWTOOL_DEB_URL HWTOOL_DEB_SHA256
+	declare HWTOOL_VERSION HWTOOL_DEB_URL HWTOOL_DEB_SHA256 HWTOOL_GTK_DEB_URL HWTOOL_GTK_DEB_SHA256
 	# shellcheck source=userpatches/roxora/hwtool.conf
 	source "${ROXORA_DIR}/hwtool.conf"
-	declare deb="${SDCARD}/tmp/roxora-hwtool.deb"
+	declare -a debs=("roxora-hwtool ${HWTOOL_DEB_URL} ${HWTOOL_DEB_SHA256}")
+	[[ "${ROXORA_FLAVOR}" == cli ]] || debs+=("roxora-hwtool-gtk ${HWTOOL_GTK_DEB_URL} ${HWTOOL_GTK_DEB_SHA256}")
+	declare -a files=()
+	declare entry pkg url sum
 	display_alert "Roxora" "installing hwtool ${HWTOOL_VERSION}" "info"
-	run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${deb}" "${HWTOOL_DEB_URL}"
-	echo "${HWTOOL_DEB_SHA256}  ${deb}" | sha256sum --check --status ||
-		exit_with_error "Roxora: ${HWTOOL_DEB_URL} does not match HWTOOL_DEB_SHA256 in hwtool.conf"
-	chroot_sdcard_apt_get install /tmp/roxora-hwtool.deb
-	rm -f "${deb}"
-	[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' roxora-hwtool)" == "${HWTOOL_VERSION}" ]] ||
-		exit_with_error "Roxora: roxora-hwtool ${HWTOOL_VERSION} is not installed"
+	for entry in "${debs[@]}"; do
+		read -r pkg url sum <<< "${entry}"
+		run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${SDCARD}/tmp/${pkg}.deb" "${url}"
+		echo "${sum}  ${SDCARD}/tmp/${pkg}.deb" | sha256sum --check --status ||
+			exit_with_error "Roxora: ${url} does not match its SHA-256 in hwtool.conf"
+		files+=("/tmp/${pkg}.deb")
+	done
+	chroot_sdcard_apt_get install "${files[@]}"
+	for entry in "${debs[@]}"; do
+		read -r pkg url sum <<< "${entry}"
+		rm -f "${SDCARD}/tmp/${pkg}.deb"
+		[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' "${pkg}")" == "${HWTOOL_VERSION}" ]] ||
+			exit_with_error "Roxora: ${pkg} ${HWTOOL_VERSION} is not installed"
+	done
 }
 
 # Preinstall roxora-wallpapers, built here from roxora-os/design at a fixed
-# commit (userpatches/roxora/wallpapers/). Nothing shows on a server image;
-# with a GNOME desktop the wallpapers are in Settings and Facet is the default.
+# commit (userpatches/roxora/wallpapers/). Nothing shows on a command line
+# image; with a GNOME desktop the wallpapers are in Settings and Facet is the
+# default.
 function post_repo_customize_image__roxora_tools_wallpapers() {
 	declare WALLPAPERS_VERSION WALLPAPERS_DESIGN_COMMIT
 	declare -a WALLPAPERS_FILES=()

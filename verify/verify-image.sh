@@ -6,7 +6,7 @@
 #
 # Check a Roxora image without booting it.
 #
-#   sudo verify/verify-image.sh [--offline] <image.img | image.img.xz>
+#   sudo verify/verify-image.sh [--offline] [--flavor FLAVOR] <image.img | image.img.xz>
 #
 # The image is attached read-only. Its root filesystem is mounted under an
 # overlay with a throwaway upper layer, so apt can run in a chroot without
@@ -14,6 +14,12 @@
 #
 # --offline  skip "apt-get update" in the chroot and use the package lists the
 #            image shipped with.
+# --flavor   the flavor the image must be: cli, gnome-minimal or gnome. The
+#            check always reads the flavor from the image's packages; with
+#            this option it fails when the image is another one.
+#
+# A desktop image also needs the snap command on the host (package snapd),
+# to validate the seeded snaps.
 #
 # Exits 0 when every check passes, 1 otherwise.
 
@@ -25,21 +31,34 @@ LISTS="${REPO}/userpatches/roxora"
 REF="${HERE}/reference"
 
 offline=no
+want_flavor=""
 image=""
-for arg in "$@"; do
+while [[ $# -gt 0 ]]; do
+	arg="$1"
+	shift
 	case "${arg}" in
 		--offline) offline=yes ;;
+		--flavor)
+			want_flavor="${1:-}"
+			shift || true
+			;;
+		--flavor=*) want_flavor="${arg#*=}" ;;
 		-h | --help)
-			sed -n '5,17s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,24s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*) image="${arg}" ;;
 	esac
 done
 [[ -n "${image}" && -f "${image}" ]] || {
-	echo "usage: $0 [--offline] <image.img | image.img.xz>" >&2
+	echo "usage: $0 [--offline] [--flavor FLAVOR] <image.img | image.img.xz>" >&2
 	exit 2
 }
+[[ -z "${want_flavor}" || "${want_flavor}" =~ ^(cli|gnome-minimal|gnome)$ ]] || {
+	echo "verify-image.sh: --flavor is cli, gnome-minimal or gnome" >&2
+	exit 2
+}
+image_arg="${image}"
 [[ "$(id -u)" == 0 ]] || {
 	echo "verify-image.sh: needs root (loop devices, mounts, chroot)" >&2
 	exit 2
@@ -150,11 +169,37 @@ in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' > "${work}/dpkg-quer
 mapfile -t installed < <(awk '$1 ~ /^ii/ { print $2 }' "${work}/dpkg-query.txt" | sort -u)
 [[ ${#installed[@]} -gt 0 ]] || die "dpkg-query lists no installed packages in the image"
 declare -A ref=() allow=()
+is_installed() { grep -qx "ii  $1" "${work}/dpkg-query.txt"; }
+# The flavor is what the image has: Ubuntu's desktop metapackages.
+flavor=cli
+is_installed ubuntu-desktop-minimal && flavor=gnome-minimal
+is_installed ubuntu-desktop && flavor=gnome
 # shellcheck source=/dev/null
 codename="$(. "${R}/etc/os-release" && echo "${VERSION_CODENAME}")"
-manifest="${REF}/${codename}-server-cloudimg-arm64.manifest"
-[[ -f "${manifest}" ]] || die "no reference manifest for Ubuntu ${codename} (${manifest})"
-while read -r p _; do ref["${p%%:*}"]=1; done < "${manifest}"
+# The server cloud image is the reference for every flavor. A desktop image
+# adds Ubuntu's preinstalled desktop image, and the full desktop Ubuntu's
+# live desktop image too (see reference/README.md).
+manifests=("${REF}/${codename}-server-cloudimg-arm64.manifest")
+ref_name="Ubuntu server image"
+if [[ "${flavor}" != cli ]]; then
+	manifests+=("${REF}/${codename}-preinstalled-desktop-arm64+raspi.manifest")
+	ref_name="Ubuntu server and preinstalled desktop images"
+fi
+if [[ "${flavor}" == gnome ]]; then
+	manifests+=("${REF}/${codename}-desktop-arm64.manifest")
+	ref_name="Ubuntu server, preinstalled desktop and live desktop images"
+fi
+for manifest in "${manifests[@]}"; do
+	[[ -f "${manifest}" ]] || die "no reference manifest for Ubuntu ${codename} (${manifest})"
+	while read -r p _; do
+		[[ "${p}" == snap:* ]] || ref["${p%%:*}"]=1
+	done < "${manifest}"
+done
+if [[ -z "${want_flavor}" || "${want_flavor}" == "${flavor}" ]]; then
+	pass "flavor: ${flavor} (Ubuntu ${codename})"
+else
+	fail "flavor: the image is ${flavor}, expected ${want_flavor}"
+fi
 while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist")
 unexplained=()
 for p in "${installed[@]}"; do
@@ -164,7 +209,7 @@ for p in "${installed[@]}"; do
 	unexplained+=("${p}")
 done
 if [[ ${#unexplained[@]} -eq 0 ]]; then
-	pass "packages: ${#installed[@]} installed; every package not in the Ubuntu server image is hardware-layer or allowlisted"
+	pass "packages: ${#installed[@]} installed; every package not in the ${ref_name} is hardware-layer or allowlisted"
 else
 	fail "packages: ${#unexplained[@]} not in the Ubuntu reference, not hardware-layer, not allowlisted"
 	printf '%s\n' "${unexplained[@]}" | detail
@@ -387,7 +432,7 @@ if [[ "${uefi}" == yes ]]; then
 	[[ -n "${kver}" && -d "${R}/lib/modules/${kver}" ]] || boot_errors+=("no /lib/modules for kernel '${kver}'")
 	# The kernel's device trees for the SoC on the EFI system partition, for
 	# the firmware's device tree override, and the hook that keeps them there.
-	soc="$(awk -v b="${board}" '!/^[[:space:]]*(#|$)/ && $1 == b { print $5; exit }' "${REPO}/boards.conf")"
+	soc="$(awk -v b="${board}" '!/^[[:space:]]*(#|$)/ && $1 == b { print $6; exit }' "${REPO}/boards.conf")"
 	[[ -x "${R}/etc/kernel/postinst.d/zz-roxora-efi-dtb" ]] ||
 		boot_errors+=("/etc/kernel/postinst.d/zz-roxora-efi-dtb missing or not executable")
 	dtb_src="${R}/usr/lib/linux-image-${kver}/rockchip"
@@ -607,6 +652,17 @@ if [[ "${hw_inst}" == "ii  ${HWTOOL_VERSION}" ]] && in_root hwtool --version > /
 else
 	fail "tools: hwtool ${HWTOOL_VERSION} not installed or does not run (dpkg: '${hw_inst}')"
 fi
+# The GTK app: in the desktop images, with its entry for the app grid, and
+# not in the command line image.
+gtk_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-hwtool-gtk 2> /dev/null || true)"
+if [[ "${flavor}" == cli ]]; then
+	[[ -z "${gtk_inst}" ]] || fail "tools: roxora-hwtool-gtk is in a command line image (dpkg: '${gtk_inst}')"
+elif [[ "${gtk_inst}" == "ii  ${HWTOOL_VERSION}" && -x "${R}/usr/bin/hwtool-gtk" ]] &&
+	grep -qs '^Exec=hwtool-gtk' "${R}/usr/share/applications/io.github.roxora_os.HwTool.desktop"; then
+	pass "tools: hwtool GTK app ${HWTOOL_VERSION} installed, with its desktop entry"
+else
+	fail "tools: hwtool GTK app ${HWTOOL_VERSION} not installed or without its desktop entry (dpkg: '${gtk_inst}')"
+fi
 
 # shellcheck source=userpatches/roxora/wallpapers/wallpapers.conf
 source "${LISTS}/wallpapers/wallpapers.conf"
@@ -626,10 +682,140 @@ else
 	printf '%s\n' "${wp_errors[@]}" | detail
 fi
 
+# --- 8. desktop ------------------------------------------------------------------
+
+if [[ "${flavor}" == cli ]]; then
+	# A command line image has no desktop parts.
+	cli_errors=()
+	for p in gdm3 gnome-shell network-manager; do
+		is_installed "${p}" && cli_errors+=("${p} is installed")
+	done
+	[[ ! -e "${R}/var/lib/snapd/seed/seed.yaml" ]] || cli_errors+=("snaps are seeded (/var/lib/snapd/seed/seed.yaml)")
+	[[ -f "${R}/var/lib/cloud/seed/nocloud/network-config" ]] || cli_errors+=("/var/lib/cloud/seed/nocloud/network-config missing")
+	if [[ ${#cli_errors[@]} -eq 0 ]]; then
+		pass "desktop: none (command line image): no display manager, no NetworkManager, no seeded snaps; cloud-init configures the wired network"
+	else
+		fail "desktop: ${#cli_errors[@]} desktop parts in a command line image"
+		printf '%s\n' "${cli_errors[@]}" | detail
+	fi
+else
+	# The session: GDM starts at boot, into GNOME.
+	dt_errors=()
+	for p in gdm3 gnome-shell ubuntu-session; do
+		is_installed "${p}" || dt_errors+=("${p} is not installed")
+	done
+	[[ "$(readlink "${R}/etc/systemd/system/display-manager.service" 2> /dev/null)" == */gdm*.service ]] ||
+		dt_errors+=("/etc/systemd/system/display-manager.service does not point at GDM")
+	[[ "$(cat "${R}/etc/X11/default-display-manager" 2> /dev/null)" == /usr/sbin/gdm3 ]] ||
+		dt_errors+=("/etc/X11/default-display-manager is not /usr/sbin/gdm3")
+	default_target="${R}/etc/systemd/system/default.target"
+	[[ -L "${default_target}" ]] || default_target="${R}/usr/lib/systemd/system/default.target"
+	[[ "$(basename "$(readlink "${default_target}" 2> /dev/null)")" == graphical.target ]] ||
+		dt_errors+=("the default systemd target is '$(readlink "${default_target}" 2> /dev/null)', not graphical.target")
+	grep -Eqs '^[[:space:]]*AutomaticLoginEnable[[:space:]]*=[[:space:]]*[Tt]rue' "${R}/etc/gdm3/custom.conf" &&
+		dt_errors+=("GDM logs a user in automatically")
+	# The fonts are in the image before snapd sets the seeded snaps up at the
+	# first boot, so the snaps get them (CJK text in Firefox).
+	is_installed fonts-noto-cjk || dt_errors+=("fonts-noto-cjk is not installed")
+	compgen -G "${R}/usr/share/fonts/opentype/noto/NotoSansCJK*" > /dev/null ||
+		dt_errors+=("no Noto Sans CJK font files in /usr/share/fonts/opentype/noto")
+	if [[ ${#dt_errors[@]} -eq 0 ]]; then
+		pass "desktop: GDM is the display manager and starts at boot (graphical.target), GNOME Shell and Ubuntu's session installed, no automatic login, CJK fonts in /usr/share/fonts"
+	else
+		fail "desktop: ${#dt_errors[@]} problems with the session"
+		printf '%s\n' "${dt_errors[@]}" | detail
+	fi
+
+	# The network: NetworkManager for every device, as on an Ubuntu desktop,
+	# and nothing that waits for systemd-networkd at boot.
+	nm_errors=()
+	is_installed network-manager || nm_errors+=("network-manager is not installed")
+	[[ -L "${R}/etc/systemd/system/multi-user.target.wants/NetworkManager.service" ]] ||
+		nm_errors+=("NetworkManager.service is not enabled")
+	cmp -s "${LISTS}/desktop/99-roxora-desktop.cfg" "${R}/etc/cloud/cloud.cfg.d/99-roxora-desktop.cfg" ||
+		nm_errors+=("/etc/cloud/cloud.cfg.d/99-roxora-desktop.cfg (cloud-init writes no network configuration) is missing or differs from userpatches/roxora/desktop")
+	[[ ! -e "${R}/var/lib/cloud/seed/nocloud/network-config" ]] ||
+		nm_errors+=("/var/lib/cloud/seed/nocloud/network-config exists (cloud-init would configure the network)")
+	renderer_file=""
+	for f in "${R}"/usr/lib/netplan/*.yaml "${R}"/etc/netplan/*.yaml; do
+		[[ -f "${f}" ]] || continue
+		grep -q '^[[:space:]]*renderer:[[:space:]]*NetworkManager' "${f}" && renderer_file="${f#"${R}"}"
+		grep -Eq '^[[:space:]]*renderer:[[:space:]]*networkd|^[[:space:]]*(ethernets|wifis|bridges|bonds|vlans):' "${f}" &&
+			nm_errors+=("${f#"${R}"} configures devices or names systemd-networkd")
+	done
+	[[ -n "${renderer_file}" ]] || nm_errors+=("no netplan file makes NetworkManager the renderer")
+	while read -r f; do
+		nm_errors+=("${f#"${R}"}: systemd-networkd is enabled in the image (wait-online would hold the boot for two minutes)")
+	done < <(find "${R}/etc/systemd/system" \( -name 'systemd-networkd.service' -o -name 'systemd-networkd-wait-online.service' \) 2> /dev/null)
+	if [[ ${#nm_errors[@]} -eq 0 ]]; then
+		pass "desktop: NetworkManager enabled and the netplan renderer (${renderer_file}), cloud-init writes no network configuration, systemd-networkd and its wait-online service not enabled"
+	else
+		fail "desktop: ${#nm_errors[@]} problems with the network setup"
+		printf '%s\n' "${nm_errors[@]}" | detail
+	fi
+
+	# The default wallpaper, as GNOME reads it from the compiled schemas: the
+	# memory backend has no stored settings, so the answer is the default.
+	wp_default="$(in_root env GSETTINGS_BACKEND=memory XDG_CURRENT_DESKTOP=ubuntu:GNOME gsettings get org.gnome.desktop.background picture-uri 2>&1 || true)"
+	if [[ "${wp_default}" == "'file:///usr/share/backgrounds/roxora/roxora-facet-light.png'" ]]; then
+		pass "desktop: the default wallpaper in the compiled GNOME settings is Roxora Facet"
+	else
+		fail "desktop: the default wallpaper is not Roxora Facet"
+		detail <<< "${wp_default}"
+	fi
+
+	# Seeded snaps: every snap of snaps.list for this release and flavor, in
+	# its channel, with its file; the model is generic-classic; snapd has not
+	# run yet; and snapd's own check of the seed (assertions, bases).
+	seed="${R}/var/lib/snapd/seed"
+	sn_errors=()
+	n_seeded=0
+	if [[ ! -s "${seed}/seed.yaml" ]]; then
+		sn_errors+=("/var/lib/snapd/seed/seed.yaml missing")
+	else
+		# "<name> <channel> <file>" per seeded snap.
+		awk '
+			function flush() { if (name != "") print name, channel, file }
+			/^- name:/ { flush(); name = $3; channel = ""; file = "" }
+			/^[[:space:]]+channel:/ { channel = $2 }
+			/^[[:space:]]+file:/ { file = $2 }
+			END { flush() }
+		' "${seed}/seed.yaml" > "${work}/seeded.txt"
+		n_seeded="$(wc -l < "${work}/seeded.txt")"
+		while read -r name _ file; do
+			[[ -n "${file}" && -s "${seed}/snaps/${file}" ]] || sn_errors+=("${name}: snap file '${file}' missing from the seed")
+			[[ -n "${file}" && "$(stat -c %u:%g "${seed}/snaps/${file}" 2> /dev/null)" == 0:0 ]] || sn_errors+=("${name}: snap file not owned by root")
+		done < "${work}/seeded.txt"
+		while read -r name channel; do
+			grep -q "^${name} ${channel} " "${work}/seeded.txt" ||
+				sn_errors+=("${name} from ${channel} (userpatches/roxora/desktop/snaps.list) is not seeded: '$(grep "^${name} " "${work}/seeded.txt" || true)'")
+		done < <(list "${LISTS}/desktop/snaps.list" | awk -v r="${codename}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3, $4 }')
+		for name in snapd firefox; do
+			grep -q "^${name} " "${work}/seeded.txt" || sn_errors+=("${name} is not seeded")
+		done
+		cmp -s "${LISTS}/desktop/generic-classic.model" "${seed}/assertions/model" ||
+			sn_errors+=("the seed's model assertion is not generic-classic (userpatches/roxora/desktop/generic-classic.model)")
+		[[ ! -e "${R}/var/lib/snapd/state.json" ]] || sn_errors+=("/var/lib/snapd/state.json exists (snapd already ran; the seed would not be installed)")
+		if ! command -v snap > /dev/null; then
+			sn_errors+=("the snap command is missing on this host, the seed cannot be validated (install snapd)")
+		elif ! snap debug validate-seed "${seed}/seed.yaml" > "${work}/validate-seed.txt" 2>&1; then
+			sn_errors+=("snap debug validate-seed: $(tr '\n' ' ' < "${work}/validate-seed.txt")")
+		fi
+	fi
+	[[ -L "${R}/etc/systemd/system/multi-user.target.wants/snapd.seeded.service" ]] || sn_errors+=("snapd.seeded.service is not enabled")
+	[[ -L "${R}/etc/systemd/system/sockets.target.wants/snapd.socket" ]] || sn_errors+=("snapd.socket is not enabled")
+	if [[ ${#sn_errors[@]} -eq 0 ]]; then
+		pass "desktop: ${n_seeded} snaps seeded for the first boot ($(awk '{ printf "%s%s", (NR > 1 ? " " : ""), $1 }' "${work}/seeded.txt")), every snap of snaps.list in its channel, model generic-classic, seed valid (snap debug validate-seed)"
+	else
+		fail "desktop: ${#sn_errors[@]} problems with the seeded snaps"
+		printf '%s\n' "${sn_errors[@]}" | detail
+	fi
+fi
+
 # --- summary -------------------------------------------------------------------
 
 echo
-echo "Summary for $(basename "${1:-${image}}")"
+echo "Summary for $(basename "${image_arg}")"
 printf '  %s\n' "${summary[@]}"
 if ((failures > 0)); then
 	echo "${failures} check(s) failed"
