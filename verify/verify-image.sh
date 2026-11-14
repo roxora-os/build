@@ -166,6 +166,7 @@ echo
 
 in_root dpkg-query -W -f '${db:Status-Abbrev} ${Package}\n' > "${work}/dpkg-query.txt" ||
 	die "dpkg-query failed in the image"
+cp "${work}/dpkg-query.txt" /tmp/roxora-dpkg.txt
 mapfile -t installed < <(awk '$1 ~ /^ii/ { print $2 }' "${work}/dpkg-query.txt" | sort -u)
 [[ ${#installed[@]} -gt 0 ]] || die "dpkg-query lists no installed packages in the image"
 declare -A ref=() allow=()
