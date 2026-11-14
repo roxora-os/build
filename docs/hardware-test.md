@@ -109,10 +109,15 @@ Pass:
       hostnamectl hostname              # the board name, e.g. radxa-rock-4d
       cat /etc/os-release               # NAME="Ubuntu", VERSION_ID="24.04"
       df -h /                           # size close to the card or eMMC size
-      ls -l --time-style=+%F /etc/ssh/ssh_host_*_key.pub   # dated today, not the image build date
+      sudo journalctl -b | grep -A1 'SSH HOST KEY FINGERPRINTS'   # keys made on this boot
       sudo passwd -S root               # "root L ..." (locked)
       systemctl --failed                # 0 loaded units listed
       journalctl -b -p err --no-pager   # note every line in the report
+
+  Without a battery on the board's clock, the time starts from the image
+  build time until it is synced over the network. Host keys made
+  on the first boot can therefore carry the build date; what counts is that
+  cloud-init printed their fingerprints on this boot.
 
 ### B3. Network
 
@@ -151,10 +156,11 @@ unattended-upgrades apt-daily-upgrade`) and run the command again.
 Pass:
 
 - `base-files` has its installed and candidate version from
-  `ports.ubuntu.com`, never from `apt.armbian.com`;
+  the Ubuntu archive (`ports.ubuntu.com` on 24.04, `archive.ubuntu.com` on
+  26.04), never from `apt.armbian.com`;
 - every package that `full-upgrade` takes from `apt.armbian.com` is one of
   `linux-image-*`, `linux-dtb-*`, `linux-headers-*`, `linux-u-boot-*`,
-  `armbian-firmware*` (or `charsiu`); everything else comes from `ports.ubuntu.com`;
+  `armbian-firmware*` (or `charsiu`); everything else comes from the Ubuntu archive;
 - the upgrade finishes without errors.
 
 Images carry kernel packages with a version such as `26.11.0-trunk`, lower
