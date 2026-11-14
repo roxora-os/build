@@ -43,6 +43,26 @@ image's name.
 Roxora Imager downloads and checks the files itself; you can skip to step 3
 if you use it.
 
+### Desktop images come in parts
+
+GitHub takes no release file of 2 GiB or more, and a desktop image is
+larger. It is published in parts instead: `<file>.img.xz.part1`,
+`<file>.img.xz.part2` (each up to 1900 MiB), with one `<file>.img.xz.sha256`
+for the joined file. Roxora Imager newer than 0.1.4 downloads the parts,
+joins and checks them itself. By hand, download every part and the `.sha256`
+file into one directory and join them in order:
+
+    cat roxora-<board>-<release>-edge-gnome-<version>.img.xz.part* > roxora-<board>-<release>-edge-gnome-<version>.img.xz
+
+On Windows, in the Command Prompt:
+
+    copy /b <file>.img.xz.part1 + <file>.img.xz.part2 <file>.img.xz
+
+Then check the joined file as below; the parts can be deleted once it says
+`OK`. The joined `.img.xz` is what step 3 writes. The Download page and
+`SHA256SUMS` in the release also give the SHA-256 of each part, to check a
+single part before joining.
+
 Check the files (`<release>` is `noble` for Ubuntu 24.04 or `resolute` for
 Ubuntu 26.04; a desktop image has `-gnome-minimal` or `-gnome` after
 `edge`):
@@ -57,6 +77,9 @@ attestation: a signed record of the GitHub Actions run, commit and repository
 that built it. With the GitHub CLI:
 
     gh attestation verify roxora-<board>-<release>-edge-<version>.img.xz --repo roxora-os/build
+
+This works for an image joined from its parts too: the images are attested
+whole before they are split, and each part has an attestation of its own.
 
 ## 2. Radxa ROCK 4D: bootloader into SPI NOR flash
 
@@ -78,7 +101,8 @@ Any of these works:
 
 - Roxora Imager: choose the board, the image and the SD card. It checks the
   download, writes the card and reads it back.
-- Raspberry Pi Imager: "Use custom", then the `.img.xz` file.
+- Raspberry Pi Imager: "Use custom", then the `.img.xz` file (for a desktop
+  image, the file joined from its parts).
 - On Linux, where `/dev/sdX` is the SD card (check with `lsblk`; everything
   on it is erased):
 

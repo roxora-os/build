@@ -47,6 +47,11 @@ image carries (Firefox, the App Center and what they need) in the image, so
 they need no network at the first boot. See
 [Architecture](docs/architecture.md#desktop-flavors).
 
+A desktop image is larger than the 2 GiB GitHub allows for one release file,
+so a release carries it in parts (`...img.xz.part1`, `...img.xz.part2`).
+Roxora Imager joins them itself; by hand it is one `cat` command, see
+[Installing Roxora](docs/install.md#desktop-images-come-in-parts).
+
 ## Supported boards
 
 From [`boards.conf`](boards.conf):
