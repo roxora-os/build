@@ -241,6 +241,13 @@ function post_customize_image__roxora_cloud_init() {
 
 	# Like Ubuntu: root has no password; the default user uses sudo.
 	chroot_sdcard usermod -p "'*'" root
+
+	# The system font directories, empty until a font package is installed.
+	# snapd gives a snap the host's fonts only through directories that exist
+	# when it sets the snap up; installing a desktop on this image put the
+	# Firefox snap in before the first font package, and Firefox then had no
+	# system fonts (no CJK text) until firefox:desktop was reconnected.
+	install -d -m 0755 "${SDCARD}/usr/share/fonts" "${SDCARD}/usr/local/share/fonts"
 }
 
 # Undo what Armbian changed in Ubuntu's own packages and remove the files it

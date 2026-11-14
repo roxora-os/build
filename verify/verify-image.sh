@@ -530,6 +530,7 @@ done
 in_root dpkg-query -W cloud-init > /dev/null 2>&1 || fb_errors+=("cloud-init is not installed")
 grep -q '^  filename: /swap.img' "${R}/etc/cloud/cloud.cfg.d/99-roxora.cfg" 2> /dev/null || fb_errors+=("no swap file configured for the first boot")
 [[ ! -e "${R}/swap.img" ]] || fb_errors+=("/swap.img is in the image (it is made at the first boot)")
+[[ -d "${R}/usr/share/fonts" && -d "${R}/usr/local/share/fonts" ]] || fb_errors+=("/usr/share/fonts or /usr/local/share/fonts is missing (snaps installed later would get no system fonts)")
 [[ "$(awk -F: '$1 == "root" { print $2 }' "${R}/etc/shadow")" == "*" ]] || fb_errors+=("root has a password")
 # Default account: roxora, password set, expired (lastchg 0), in sudo.
 roxora_shadow="$(awk -F: '$1 == "roxora"' "${R}/etc/shadow")"
@@ -551,7 +552,7 @@ compgen -G "${R}/etc/ssh/ssh_host_*" > /dev/null && fb_errors+=("SSH host keys a
 grep -rqs -- '--autologin' "${R}/etc/systemd/system" && fb_errors+=("a getty autologin override exists")
 [[ "$(cat "${R}/etc/hostname")" == "${board}" ]] || fb_errors+=("hostname is '$(cat "${R}/etc/hostname")', expected '${board}'")
 if [[ ${#fb_errors[@]} -eq 0 ]]; then
-	pass "first boot: cloud-init seeded with a swap file, no SSH host keys, ping capability set, user roxora with a home directory and an expired password, root locked, no autologin, hostname ${board}"
+	pass "first boot: cloud-init seeded with a swap file, font directories for snaps, no SSH host keys, ping capability set, user roxora with a home directory and an expired password, root locked, no autologin, hostname ${board}"
 else
 	fail "first boot: ${#fb_errors[@]} problems"
 	printf '%s\n' "${fb_errors[@]}" | detail
