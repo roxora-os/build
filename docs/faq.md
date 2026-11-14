@@ -113,7 +113,21 @@ card. The CM5-IO prefers its eMMC over the SD card. See step 2 of
 
 ## Are there desktop images?
 
-Not yet. Roxora builds minimal server images only.
+Not yet. Roxora builds minimal server images only. You can install a
+desktop on one with `sudo apt install ubuntu-desktop-minimal`.
+
+## Firefox shows boxes instead of Chinese, Japanese or Korean text
+
+This can happen after installing a desktop on a server image. A server image
+has no `/usr/share/fonts`. If apt installs the Firefox snap before the font
+packages, snapd sets up Firefox without the system fonts, and Firefox does
+not see fonts installed later. Reconnecting the snap's desktop interface
+makes snapd set it up again, with the fonts:
+
+    sudo snap disconnect firefox:desktop
+    sudo snap connect firefox:desktop
+
+Then restart Firefox.
 
 ## Is Roxora affiliated with Ubuntu, Armbian or Rockchip?
 
