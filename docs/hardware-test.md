@@ -30,18 +30,17 @@ Use the newest release on the
 [releases page](https://github.com/roxora-os/build/releases), at least
 2026.11.1 (the first with the ROCK 4D SPI bootloader file). In the commands
 below, `<image>` is the board's `.img.xz`, for example
-`roxora-radxa-rock-4d-noble-edge-2026.11.1.img.xz`.
+`roxora-radxa-rock-4d-noble-edge-2026.11.3.img.xz`.
 
-Tools, until they have releases of their own:
+Tools:
 
-- Roxora Imager desktop app: the per-system packages from the newest
-  successful run of the
-  [imager Release workflow](https://github.com/roxora-os/imager/actions/workflows/release.yml)
-  (artifacts `linux-x86_64`, `linux-arm64`, `macos-arm64`, `macos-x86_64`,
-  `windows-x64`). The web version is at https://roxora-os.github.io/imager/
-  (Chrome or Edge).
-- hwtool: the `debs` artifact of the newest successful run of the
-  [hwtool CI workflow](https://github.com/roxora-os/hwtool/actions/workflows/ci.yml).
+- Roxora Imager: the package for your system from the newest release on
+  https://github.com/roxora-os/imager/releases (see
+  https://roxora-os.github.io/roxora-imager/). The web version is at
+  https://roxora-os.github.io/imager/ (Chrome or Edge).
+- hwtool: preinstalled in the images. Newer versions are on
+  https://github.com/roxora-os/hwtool/releases; the desktop app is the
+  separate package `roxora-hwtool-gtk`.
 
 Maskrom mode: power off the board, hold its Maskrom button, connect its
 USB-C port to the computer, release the button after two seconds. On Linux
