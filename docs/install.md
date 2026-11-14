@@ -74,7 +74,16 @@ gives the kernel the board's device tree.
    that the board shows the firmware's front page on HDMI or on the serial
    console (1500000 baud) before you go on.
 2. Download and check
-   `roxora-generic-rk3576-uefi-<release>-edge-<version>.img.xz` as in step 1 above.
+   `roxora-generic-rk3576-uefi-<release>-<branch>-<version>.img.xz` as in
+   step 1 above. `<branch>` is the kernel:
+   - `edge`: Armbian's kernel, close to mainline Linux. It works with the
+     firmware's own device tree and with Armbian's (below).
+   - `vendor`: Rockchip's BSP kernel (Linux 6.1), with the drivers of
+     Rockchip's own SDK. It needs Armbian's device tree for that kernel, so
+     turn on the firmware's DTB override first, as described in
+     [Using Armbian's device tree](#using-armbians-device-tree-instead-of-the-firmwares);
+     the firmware's own device tree is written for mainline Linux. Its serial
+     console is `ttyFIQ0`.
 3. Write the image to a USB drive, an NVMe drive or an SD card, the same way
    as in step 3 above (Roxora Imager, Raspberry Pi Imager, or `xz -dc ... |
    sudo dd ...`). An NVMe drive can be written in another computer with a
@@ -89,7 +98,8 @@ gives the kernel the board's device tree.
 
 ### Using Armbian's device tree instead of the firmware's
 
-By default the kernel gets the firmware's device tree. The image also has
+By default the kernel gets the firmware's device tree. The `vendor` image
+needs this override; for the `edge` image it is optional. The image also has
 Armbian's device trees for RK3576, from the installed kernel, on its EFI
 system partition (`/boot/efi/dtb/rockchip/`); every kernel update refreshes
 them. To boot with those instead, on edk2-rk3576:

@@ -544,9 +544,15 @@ function post_customize_image__roxora_uefi_grub_debconf() {
 # ships it. update-grub runs after this, and again on every kernel update.
 function grub_early_config__roxora_settings() {
 	: "${MOUNT:?MOUNT is not set}"
-	display_alert "Roxora" "GRUB settings: console ${ROXORA_UEFI_SERIAL}" "info"
+	# Rockchip's BSP kernel puts the debug UART behind its FIQ debugger
+	# (CONFIG_FIQ_DEBUGGER=y in linux-rk35xx-vendor.config) as ttyFIQ0; with
+	# a mainline device tree it is ttyS0. The kernel uses the consoles that
+	# exist.
+	declare consoles="console=${ROXORA_UEFI_SERIAL}"
+	[[ "${BRANCH}" == vendor* ]] && consoles="console=ttyFIQ0 ${consoles}"
+	display_alert "Roxora" "GRUB settings: ${consoles}" "info"
 	rm -f "${MOUNT}/etc/default/grub.d/98-armbian.cfg"
-	sed -e "s/@SERIAL@/${ROXORA_UEFI_SERIAL}/g" "${ROXORA_DIR}/uefi/grub.cfg.in" > "${MOUNT}/etc/default/grub.d/90-roxora.cfg"
+	sed -e "s/@CONSOLES@/${consoles}/g" "${ROXORA_DIR}/uefi/grub.cfg.in" > "${MOUNT}/etc/default/grub.d/90-roxora.cfg"
 }
 
 # grub.sh copies its wallpaper and font after the hook above; nothing reads

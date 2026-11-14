@@ -15,7 +15,10 @@
 declare -g BOARD_VENDOR="generic"
 declare -g BOARD_MAINTAINER=""
 declare -g INTRODUCED="2026"
-declare -g KERNEL_TARGET="edge"
+# edge: Armbian's mainline kernel, with the firmware's device tree or Armbian's.
+# vendor: Rockchip's BSP kernel (Armbian's rk35xx vendor branch); it needs the
+# device tree of its own kernel, through the firmware's DTB override.
+declare -g KERNEL_TARGET="edge,vendor"
 declare -g KERNEL_TEST_TARGET="edge"
 declare -g ROXORA_UEFI="yes"
 

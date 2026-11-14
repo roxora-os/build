@@ -35,6 +35,8 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | edge | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | edge | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | vendor | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | vendor | ci-only |
 
 The `generic-rk3576-uefi` image is for any RK3576 board that runs UEFI firmware,
 such as [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576). It carries

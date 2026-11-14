@@ -965,7 +965,8 @@ The connectors have no tachometer line, so there is no RPM reading.
 
 ## Part E: UEFI image
 
-For `roxora-generic-rk3576-uefi-<release>-edge-<version>.img.xz`, on a board with
+For `roxora-generic-rk3576-uefi-<release>-<branch>-<version>.img.xz` (`edge` and
+`vendor`; the vendor image boots only with the firmware's DTB override, see E7), on a board with
 UEFI firmware (edk2-rk3576 on the ROCK 4D or the CM5-IO). The image is
 marked `hardware-tested` when E1 to E7 pass on at least one board; name the
 board and the firmware version in the report. Parts C and D do not apply:
