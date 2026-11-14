@@ -46,8 +46,9 @@ For every image:
 
 | File | Content |
 | --- | --- |
-| `roxora-...img.xz` | The image. |
-| `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. |
+| `roxora-...img.xz` | The image, when it is smaller than 1900 MiB. |
+| `roxora-...img.xz.part1`, `.part2`, ... | The image in parts, when it is larger (see [Images in parts](#images-in-parts)); the whole file is then not in the release. |
+| `roxora-...img.xz.sha256` | `sha256sum` output for the image file, one line. For an image in parts it is that of the joined file. |
 | `roxora-...verify.txt` | The output of `verify/verify-image.sh` for that image. |
 | `roxora-...-spi.img` | Only for boards that boot from SPI NOR (the ROCK 4D): the U-Boot SPI image from the same build as the disk image. It is written to the SPI flash, not to a card. UEFI images never have one. Each flavor of a board's image has its own copy, from its own build of the same U-Boot. |
 | `roxora-...-spi.img.sha256` | `sha256sum` output for the SPI image. |
@@ -56,12 +57,30 @@ Once per release:
 
 | File | Content |
 | --- | --- |
-| `SHA256SUMS` | `sha256sum` output for every other file in the release. |
+| `SHA256SUMS` | `sha256sum` output for every other file in the release. It lists the parts of a split image, not the joined file. |
 | `roxora-catalog.json` | The catalog described below. |
 
 The images, SPI images, `SHA256SUMS` and `roxora-catalog.json` also carry a
 build provenance attestation from the release workflow (from 2026.11.3 on),
-checked with `gh attestation verify <file> --repo roxora-os/build`.
+checked with `gh attestation verify <file> --repo roxora-os/build`. An image
+in parts is attested twice: whole, before it is split, so a file joined
+from its parts verifies, and each part on its own.
+
+## Images in parts
+
+GitHub refuses a release file of 2 GiB (2147483648 bytes) or more. An image
+whose `.img.xz` is larger than 1900 MiB (1992294400 bytes) is therefore
+published in parts, from 2026.11.4 on; so far those are the desktop images.
+
+- The parts are `<file>.part1`, `<file>.part2` and so on, where `<file>` is
+  the image file name. Each is 1900 MiB except the last, which holds the
+  rest. There are at most nine, so `<file>.part*` sorts in order.
+- The parts are the bytes of the `.img.xz` cut in order, nothing added.
+  Joined in order they are the file: `cat <file>.part* > <file>`, then
+  `sha256sum -c <file>.sha256`.
+- The whole `.img.xz` is not attached to the release. `<file>.sha256` is,
+  and names the joined file.
+- In the catalog such an image has `parts` and no `url` (below).
 
 ## Releases, betas and tested status
 
@@ -88,6 +107,13 @@ checked with `gh attestation verify <file> --repo roxora-os/build`.
 `roxora-catalog.json` is UTF-8 JSON. Consumers must ignore fields they do not
 know, so fields can be added without a new schema number. Removing or changing
 the meaning of a field increments `schema`.
+
+One field became optional without a new schema number: `images[].url`, in
+2026.11.4, for images published in parts. Those are the desktop images,
+which no earlier release had, so no entry that existed before lost its
+`url`. A consumer written before then that requires `url` skips such an
+image instead of offering a link that does not exist; that is the reason
+the field is left out and not pointed at a file the release does not hold.
 
     {
       "schema": 1,
@@ -141,9 +167,14 @@ the meaning of a field increments `schema`.
 | `images[].flavor` | string, optional | `cli` for a command line image, `gnome-minimal` or `gnome` for an image with Ubuntu's GNOME desktop (`ubuntu-desktop-minimal`, `ubuntu-desktop`); `FLAVOR` column of `boards.conf`. Catalogs from releases before the desktop images do not have it; consumers then take `cli`. More flavors may be added; a consumer shows one it does not know by this name. Board, release, branch and flavor together name one image of a release. |
 | `images[].kernel` | string | Kernel version in the image (`uname -r` without the branch suffix). |
 | `images[].file` | string | Image file name, as under [Image files](#image-files). |
-| `images[].url` | string | Download URL of the image. |
-| `images[].size` | integer | Size of the `.img.xz` in bytes. |
-| `images[].sha256` | string | SHA-256 of the `.img.xz`, lower-case hex. |
+| `images[].url` | string, optional | Download URL of the image. Absent when the image is published in parts: there is then no single file to download, and a consumer that can only take one URL leaves the image out. Every image has either `url` or `parts`. |
+| `images[].size` | integer | Size of the `.img.xz` in bytes; for an image in parts, of the joined file. |
+| `images[].sha256` | string | SHA-256 of the `.img.xz`, lower-case hex; for an image in parts, of the joined file. |
+| `images[].parts` | array, optional | Present only for an image published in parts ([Images in parts](#images-in-parts)), from 2026.11.4 on: the parts in the order to join them, two or more. `file`, `size` and `sha256` of the image describe the result. |
+| `images[].parts[].file` | string | Part file name, `<file>.part<n>` with `n` counting from 1. |
+| `images[].parts[].url` | string | Download URL of the part. |
+| `images[].parts[].size` | integer | Size of the part in bytes. The sizes add up to `images[].size`. |
+| `images[].parts[].sha256` | string | SHA-256 of the part, lower-case hex. |
 | `images[].extract_size` | integer | Size of the decompressed image in bytes. |
 | `images[].extract_sha256` | string | SHA-256 of the decompressed image. |
 | `images[].status` | string | `hardware-tested` or `ci-only`. |

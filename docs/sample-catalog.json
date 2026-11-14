@@ -84,13 +84,26 @@
       "flavor": "gnome-minimal",
       "kernel": "7.3.4",
       "file": "roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz",
-      "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz",
       "size": 2345678901,
       "sha256": "7136e099da7b311111d51b96c09c0e2f6eb017390ce859b4b88dbd1a52bdbcc1",
       "extract_size": 9126805504,
       "extract_sha256": "fee259b7c773833a6cdac68f649fb8b40462c666af4eafeec47861d19ce19d06",
       "status": "ci-only",
       "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.verify.txt",
+      "parts": [
+        {
+          "file": "roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz.part1",
+          "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz.part1",
+          "size": 1992294400,
+          "sha256": "4543052ea70a6cbf885a1fd7bc75fb09c21b966f9f5e12061f999dbc503b45b5"
+        },
+        {
+          "file": "roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz.part2",
+          "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0.img.xz.part2",
+          "size": 353384501,
+          "sha256": "69923fb70194d63cf9f99e3fbce1a31e3edb81e674a3864efb30c268441c8f09"
+        }
+      ],
       "spi": {
         "file": "roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0-spi.img",
         "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-minimal-2026.11.0-spi.img",
@@ -109,13 +122,26 @@
       "flavor": "gnome",
       "kernel": "7.3.4",
       "file": "roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz",
-      "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz",
       "size": 2876543210,
       "sha256": "e932ad9ecdd7478fd812c293df87d9d9986715dbd2976645f385fec1cafef072",
       "extract_size": 11274289152,
       "extract_sha256": "cab6183f5364e68ee65e3e08a5eee527ced2c9bcd82a951524235fef462ec7c7",
       "status": "ci-only",
       "verify_url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.verify.txt",
+      "parts": [
+        {
+          "file": "roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz.part1",
+          "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz.part1",
+          "size": 1992294400,
+          "sha256": "246d0e8b2aae7e77bc439b6177bf66bf81cf9a7ca07f61a91c8770bc0753caae"
+        },
+        {
+          "file": "roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz.part2",
+          "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0.img.xz.part2",
+          "size": 884248810,
+          "sha256": "6bde4e824dea374bf3e3d13df2adb3927379e6c4badf9dffddc939dbff0bf8d8"
+        }
+      ],
       "spi": {
         "file": "roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0-spi.img",
         "url": "https://github.com/roxora-os/build/releases/download/v2026.11.0/roxora-radxa-rock-4d-noble-edge-gnome-2026.11.0-spi.img",
