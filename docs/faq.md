@@ -116,12 +116,21 @@ card. The CM5-IO prefers its eMMC over the SD card. See step 2 of
 Not yet. Roxora builds minimal server images only. You can install a
 desktop on one with `sudo apt install ubuntu-desktop-minimal`.
 
+## The board takes two minutes longer to boot after installing a desktop
+
+The desktop brings NetworkManager, which then runs the wired network instead
+of systemd-networkd. `systemd-networkd-wait-online` still waits for
+systemd-networkd to bring a link up, and gives up after two minutes. With the
+desktop installed it is not needed:
+
+    sudo systemctl disable systemd-networkd-wait-online.service
+
 ## Firefox shows boxes instead of Chinese, Japanese or Korean text
 
-This can happen after installing a desktop on a server image. A server image
-has no `/usr/share/fonts`. If apt installs the Firefox snap before the font
-packages, snapd sets up Firefox without the system fonts, and Firefox does
-not see fonts installed later. Reconnecting the snap's desktop interface
+This can happen after installing a desktop on a server image from before
+2026.11.4, which had no `/usr/share/fonts`. If apt installs the Firefox snap
+before the font packages, snapd sets up Firefox without the system fonts,
+and Firefox does not see fonts installed later. Reconnecting the snap's desktop interface
 makes snapd set it up again, with the fonts:
 
     sudo snap disconnect firefox:desktop
