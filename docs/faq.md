@@ -63,7 +63,8 @@ and nothing else from Armbian, and Llama 3.2 1B (Q8) answers at about
 Connect a serial console (1500000 baud, 8N1) or wired Ethernet with DHCP,
 and log in as `roxora` with the password `roxora`. You must choose a new
 password at once, on the console and over SSH alike. The root account is
-locked; use `sudo`.
+locked; use `sudo`. A desktop image asks for the same on its login screen
+(see [First boot of a desktop image](install.md#first-boot-of-a-desktop-image)).
 
 At the first boot cloud-init also creates new SSH host keys, grows the root
 partition to the size of the card or eMMC, and brings up wired Ethernet with
@@ -117,12 +118,33 @@ card. The CM5-IO prefers its eMMC over the SD card. See step 2 of
 
 ## Are there desktop images?
 
-Not yet. Roxora builds minimal server images only. You can install a
-desktop on one with `sudo apt install ubuntu-desktop-minimal`.
+Yes. Besides the command line image, each board has two images with
+Ubuntu's GNOME desktop for the `edge` kernel: `gnome-minimal`
+(`ubuntu-desktop-minimal`) and `gnome` (`ubuntu-desktop`). See
+[Which image](install.md#which-image). The desktop is Ubuntu's own packages
+and snaps, with nothing from Armbian's desktop builds; Roxora adds its
+wallpapers and the Hardware Tool app.
+
+You can also install the desktop on a command line image with
+`sudo apt install ubuntu-desktop-minimal`. The result differs from the
+desktop image in three ways: apt then downloads the Firefox snap from the
+snap store instead of taking it from the image, cloud-init keeps writing
+the wired network's configuration (NetworkManager still runs it), and
+systemd-networkd stays enabled, which the next question is about.
+
+## Why is the default user not created by a setup wizard on the desktop?
+
+Ubuntu's desktop images create the first user in a setup wizard on the
+display. Roxora's desktop images keep the account of the command line
+image, `roxora` with a password that must be changed at the first login, so
+that a board can be set up without a display, over SSH or the serial
+console, the same way for every image. The login screen asks for the new
+password.
 
 ## The board takes two minutes longer to boot after installing a desktop
 
-The desktop brings NetworkManager, which then runs the wired network instead
+This is about a desktop installed on a command line image; the desktop
+images do not have it. The desktop brings NetworkManager, which then runs the wired network instead
 of systemd-networkd. `systemd-networkd-wait-online` still waits for
 systemd-networkd to bring a link up, and gives up after two minutes. With the
 desktop installed it is not needed:
@@ -131,8 +153,10 @@ desktop installed it is not needed:
 
 ## Firefox shows boxes instead of Chinese, Japanese or Korean text
 
-This can happen after installing a desktop on a server image from before
-2026.11.4, which had no `/usr/share/fonts`. If apt installs the Firefox snap
+This can happen after installing a desktop on a command line image from before
+2026.11.4, which had no `/usr/share/fonts`. The desktop images do not have
+this problem: their fonts are in place before snapd sets Firefox up at the
+first boot. If apt installs the Firefox snap
 before the font packages, snapd sets up Firefox without the system fonts,
 and Firefox does not see fonts installed later. Reconnecting the snap's desktop interface
 makes snapd set it up again, with the fonts:

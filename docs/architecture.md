@@ -15,8 +15,9 @@ archive.
   `cache/armbian-build`, refuses to run if the checkout is at another commit
   or has local changes, copies [`userpatches/`](../userpatches) into it and
   runs Armbian's `compile.sh` with the `roxora` extension enabled. It accepts
-  only combinations listed in [`boards.conf`](../boards.conf) and always
-  builds a minimal server image.
+  only combinations listed in [`boards.conf`](../boards.conf). Every image
+  starts as Armbian's minimal image; a desktop flavor adds Ubuntu's desktop
+  to it (see [Desktop flavors](#desktop-flavors)).
 - [`userpatches/extensions/roxora.sh`](../userpatches/extensions/roxora.sh) is
   the extension. It uses Armbian's documented extension hooks; Roxora does not
   carry a fork or patches of armbian/build.
@@ -58,8 +59,8 @@ lists as the check:
 
 What the extension does, in order:
 
-1. Checks the board, branch and release against `boards.conf` and refuses
-   desktop images.
+1. Checks the board, branch, release and flavor against `boards.conf` and
+   refuses Armbian's own desktop builds (`BUILD_DESKTOP`).
 2. Sets Armbian options so that some distro-layer parts are never installed:
    Ubuntu's own `base-files` and `/etc/os-release`, no console autologin,
    time zone `Etc/UTC`, no tuning profile, no boot splash, no kernel headers
@@ -80,7 +81,10 @@ What the extension does, in order:
    must be changed at the first login (see
    [faq.md](faq.md#how-do-i-log-in-the-first-time)). Automatic security
    updates are on, as on Ubuntu's server images.
-8. On UEFI images only: leaves out `linux-dtb`, replaces the GRUB settings
+8. On desktop flavors only: installs Ubuntu's desktop metapackage, hands the
+   network to NetworkManager, seeds the snaps and installs the Hardware Tool
+   app (see [Desktop flavors](#desktop-flavors)).
+9. On UEFI images only: leaves out `linux-dtb`, replaces the GRUB settings
    of Armbian's GRUB support with Roxora's, removes its wallpaper and fonts,
    leaves out the packages it adds that Ubuntu's server image does not have
    (`efivar`, `busybox`, `cloud-initramfs-growroot`), and turns off firmware boot entry updates (see [UEFI images](#uefi-images)).
@@ -247,15 +251,86 @@ another SoC is a board file that names its family, SoC and serial console
 (see [adding-a-board.md](adding-a-board.md#a-uefi-image-for-another-soc)).
 The hostname is the image name, `generic-rk3576-uefi`.
 
+## Desktop flavors
+
+`boards.conf` gives every image a flavor. `cli` is the command line image
+described so far. `gnome-minimal` and `gnome` are the same image with
+Ubuntu's GNOME desktop on top, built in the same run:
+`./build.sh ... FLAVOR=gnome-minimal`. Armbian's desktop support is not
+used: it installs Armbian's own desktop package sets and settings, and
+Roxora wants what Ubuntu ships.
+
+Packages. After the Ubuntu files are restored, the extension installs one
+metapackage with its recommended packages, as `apt install` does on a
+running system: `ubuntu-desktop-minimal` for `gnome-minimal`,
+`ubuntu-desktop` for `gnome`. That brings GDM, GNOME Shell and Ubuntu's
+session, NetworkManager, the fonts (Noto CJK among them), the language
+tools and, for `gnome`, LibreOffice and the other applications of a default
+Ubuntu installation. Nothing is taken from Armbian's repository: the pin
+keeps everything but the hardware layer out.
+
+Snaps. Ubuntu delivers Firefox, the App Center and Thunderbird as snaps;
+the `firefox` and `thunderbird` packages only install the snap, and skip
+that where no snapd runs, as in an image build. The build seeds the snaps
+the way Ubuntu's image builds do (livecd-rootfs, ubuntu-image):
+`snap prepare-image --classic` with the store's `generic-classic` model
+writes the snap files and their assertions to `/var/lib/snapd/seed`, and
+snapd installs them from there at the first boot, without a network.
+[`snaps.list`](../userpatches/roxora/desktop/snaps.list) names the snaps
+and channels, taken from the manifests of Ubuntu's arm64 desktop images;
+the build adds the base and content snaps those need today
+([`snap-closure.py`](../userpatches/roxora/desktop/snap-closure.py)), since
+a snap can move to a newer base after Ubuntu made its image. The snaps come
+from the store on the day of the build, so two builds can carry different
+revisions; after the first boot snapd updates them anyway. Ubuntu's builds
+also run `snap-preseed`, which does part of the first-boot work at build
+time; Roxora does not, so the first boot of a desktop image spends a few
+minutes installing the seed.
+
+Fonts in snaps. snapd gives a snap the host's fonts through the font
+directories that exist when it sets the snap up. In a desktop image the
+fonts are installed when the image is built and the snaps are set up at the
+first boot, so Firefox sees them.
+
+Network. On a desktop NetworkManager runs every device: `ubuntu-settings`
+ships `/usr/lib/netplan/00-network-manager-all.yaml`, which makes it
+netplan's renderer, as on an installed Ubuntu desktop. So the desktop
+flavors differ from `cli` in two ways. cloud-init writes no network
+configuration
+([`99-roxora-desktop.cfg`](../userpatches/roxora/desktop/99-roxora-desktop.cfg);
+the `cli` seed's `network-config` is left out), and systemd-networkd, which
+Armbian's build enables, is disabled again. Ubuntu's systemd package does
+not enable it either: netplan starts it when a configuration asks for it.
+Left enabled, `systemd-networkd-wait-online` would hold every boot for two
+minutes, waiting for links it does not manage.
+
+First login. Ubuntu's preinstalled desktop images create the first user on
+the display (oem-config on 24.04, gnome-initial-setup on 26.04). Roxora
+keeps the account of the `cli` image, `roxora` with an expired password, in
+every flavor: a board can then be set up over SSH or the serial console
+without a display, and the documentation is the same for all images. GDM
+asks for the new password through PAM. cloud-init still does the rest of
+the first boot (host keys, growing the root file system, the swap file).
+On the desktop flavors `roxora` is also in the `lpadmin` and `users`
+groups, as Ubuntu's first desktop user is.
+
+Roxora's own parts are two packages: `roxora-wallpapers`, in every flavor,
+whose settings override makes Facet the default wallpaper, and
+`roxora-hwtool-gtk`, the GTK app of hwtool, in the desktop flavors.
+
+The boot is not changed: no boot splash is set up, so kernel messages show
+until GDM starts.
+
 ## Verification
 
 `verify/verify-image.sh` mounts an image read-only (changes go to a
 throwaway overlay) and checks:
 
-- every installed package is in Ubuntu's own server image, belongs to the
+- every installed package is in Ubuntu's own image, belongs to the
   hardware layer, or is on the
   [allowlist](../verify/reference/allowlist), against the reference
-  manifests in [`verify/reference/`](../verify/reference);
+  manifests in [`verify/reference/`](../verify/reference): the server image
+  for `cli`, and with it Ubuntu's desktop images for the desktop flavors;
 - the pin file is installed unchanged, the Armbian source list is present,
   only hardware packages have an Armbian candidate, `base-files` comes from
   the Ubuntu archive, and a simulated `full-upgrade` takes nothing else from
@@ -276,7 +351,18 @@ throwaway overlay) and checks:
   `grub2/update_nvram` is false;
 - cloud-init is seeded, the `roxora` account exists with an expired
   password, root is locked, there is no autologin, and automatic updates
-  are on.
+  are on;
+- desktop flavors: GDM is the display manager and the system boots to
+  `graphical.target`, without automatic login; NetworkManager is enabled and
+  netplan's renderer, cloud-init writes no network configuration and
+  systemd-networkd is not enabled; the CJK fonts are installed; the default
+  wallpaper in the compiled GNOME settings is Facet; the Hardware Tool app
+  is installed; every snap of `snaps.list` is in the seed in its channel,
+  the model is `generic-classic`, and `snap debug validate-seed` accepts
+  the seed. A `cli` image must have none of the desktop parts.
+
+The flavor is read from the image (which desktop metapackage is installed);
+CI also passes the flavor it built, and a mismatch fails.
 
 CI runs it on every image, and its output is published with each release
 (see [release-contract.md](release-contract.md)). It cannot tell whether a
@@ -297,8 +383,10 @@ says nothing about the board's hardware.
   its own, from its own project.
 - No `armbian-config`, and no Roxora replacement for it. Configuration is
   done the Ubuntu way.
-- No desktop images yet. Only minimal server images are built.
+- No desktop of its own. The desktop flavors are Ubuntu's GNOME desktop as
+  Ubuntu packages it; there are no other desktops, and no desktop images
+  with the vendor kernel.
 - No Debian images. Roxora is Ubuntu only, starting with 24.04 (noble).
-- No packages of its own in the image, and no apt repository of its own.
-  Userspace updates come from the Ubuntu archive, hardware updates from
-  Armbian.
+- No apt repository of its own. Userspace updates come from the Ubuntu
+  archive, hardware updates from Armbian. Roxora's own packages in the
+  image (hwtool, the wallpapers) are installed as files at build time.
