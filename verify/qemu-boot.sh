@@ -5,7 +5,7 @@
 # Boot a Roxora UEFI image on QEMU's arm64 "virt" machine with Ubuntu's edk2
 # build (AAVMF, package qemu-efi-aarch64) and report how far it gets.
 #
-#   verify/qemu-boot.sh [--timeout SECONDS] <image.img | image.img.xz> <log>
+#   verify/qemu-boot.sh [--timeout SECONDS] [--stub-only] <image.img | image.img.xz> <log>
 #
 # QEMU (default qemu-system-aarch64) and AAVMF_DIR (default /usr/share/AAVMF)
 # in the environment pick another QEMU binary or firmware directory.
@@ -20,11 +20,15 @@
 # the firmware starts GRUB and GRUB starts the kernel.
 #
 # Exits 0 when GRUB ran and the kernel started with grub.cfg's command line,
-# 1 otherwise.
+# 1 otherwise. With --stub-only the command line is not checked: for a kernel
+# built only for Rockchip SoCs (the vendor branch has no PL011 UART driver
+# and no generic PCI host), nothing it prints after its EFI stub reaches
+# QEMU's console.
 
 set -euo pipefail
 
 timeout=300
+stub_only=no
 args=()
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -32,8 +36,12 @@ while [[ $# -gt 0 ]]; do
 			timeout="$2"
 			shift 2
 			;;
+		--stub-only)
+			stub_only=yes
+			shift
+			;;
 		-h | --help)
-			sed -n '5,23s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,27s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*)
@@ -129,7 +137,11 @@ if ! check "kernel EFI stub (EFI stub: Booting Linux Kernel)" 'EFI stub: Booting
 	ok+=1
 fi
 # The command line comes from grub.cfg: the root file system by UUID.
-check "kernel command line from grub.cfg (root=UUID=)" 'Kernel command line:.*root=UUID=' || ok+=1
+if [[ "${stub_only}" == yes ]]; then
+	echo "skipped   kernel command line (--stub-only: the kernel has no driver for QEMU's UART)"
+else
+	check "kernel command line from grub.cfg (root=UUID=)" 'Kernel command line:.*root=UUID=' || ok+=1
+fi
 echo
 echo "Matching lines:"
 text | grep -E 'GNU GRUB|Loading|EFI stub|Booting Linux|Kernel command line|Machine model|OF: fdt|ACPI' | sed -e 's/^[[:space:]]*//' -e 's/^/  /' | head -n 20 || true
