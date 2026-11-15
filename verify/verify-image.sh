@@ -20,8 +20,10 @@
 # --upgraded the image is one of an earlier release, upgraded to this
 #            commit's release by verify/upgrade-test.sh as a user would. The
 #            checks are the same, except that the bootloader written to the
-#            disk may be older than the installed U-Boot package: an update of
-#            the package does not write it, on a board either.
+#            disk may be older than the installed U-Boot package (an update of
+#            the package does not write it, on a board either), the packages
+#            of reference/allowlist-upgraded are allowed, and a desktop
+#            image's snap seed may be that of the release it was made for.
 #
 # A desktop image also needs the snap command on the host (package snapd),
 # to validate the seeded snaps.
@@ -51,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--flavor=*) want_flavor="${arg#*=}" ;;
 		-h | --help)
-			sed -n '5,29s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,31s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*) image="${arg}" ;;
@@ -213,6 +215,10 @@ else
 	fail "flavor: the image is ${flavor}, expected ${want_flavor}"
 fi
 while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist")
+# An upgraded system keeps a few packages a new image does not have.
+if [[ "${upgraded}" == yes ]]; then
+	while read -r p reason; do allow["${p}"]="${reason}"; done < <(list "${REF}/allowlist-upgraded")
+fi
 unexplained=()
 for p in "${installed[@]}"; do
 	[[ -n "${ref[${p}]:-}" ]] && continue

@@ -1,0 +1,7 @@
+# Packages allowed on an upgraded image only (verify-image.sh --upgraded):
+# an image of an earlier release, or of Ubuntu 24.04, taken to this
+# release as docs/install.md says. A new image does not have them.
+# Format: <package> <reason>, as in allowlist.
+
+# Ubuntu 24.04 to 26.04 (do-release-upgrade)
+systemd-timesyncd       24.04's time daemon; Ubuntu's release upgrade keeps it (ubuntu-minimal and roxora-release depend on "chrony | time-daemon"), a new 26.04 image has chrony
