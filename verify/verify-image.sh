@@ -1020,6 +1020,23 @@ else
 		detail <<< "${wp_default}"
 	fi
 
+	# An upgraded image that has not booted still has the seed of the release
+	# it was made for; snapd installs those snaps at its first boot. On a
+	# running system they are installed already, and the release upgrader
+	# moves them to the new release's channels through snapd
+	# (deb2snap.json).
+	seed_release="${codename}"
+	seed_words=""
+	if [[ "${upgraded}" == yes && -s "${R}/var/lib/snapd/seed/seed.yaml" ]]; then
+		for r in $(list "${LISTS}/desktop/snaps.list" | awk '{ print $1 }' | sort -u); do
+			if ! list "${LISTS}/desktop/snaps.list" | awk -v r="${r}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3 }' |
+				grep -vxFf <(awk '/^- name:/ { print $3 }' "${R}/var/lib/snapd/seed/seed.yaml") | grep -q .; then
+				seed_release="${r}"
+				break
+			fi
+		done
+		[[ "${seed_release}" == "${codename}" ]] || seed_words=" (upgraded image: the seed of its ${seed_release} image, for the first boot)"
+	fi
 	# Seeded snaps: every snap of snaps.list for this release and flavor, in
 	# its channel, with its file; the model is generic-classic; snapd has not
 	# run yet; and snapd's own check of the seed (assertions, bases).
@@ -1045,7 +1062,7 @@ else
 		while read -r name channel; do
 			grep -q "^${name} ${channel} " "${work}/seeded.txt" ||
 				sn_errors+=("${name} from ${channel} (userpatches/roxora/desktop/snaps.list) is not seeded: '$(grep "^${name} " "${work}/seeded.txt" || true)'")
-		done < <(list "${LISTS}/desktop/snaps.list" | awk -v r="${codename}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3, $4 }')
+		done < <(list "${LISTS}/desktop/snaps.list" | awk -v r="${seed_release}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3, $4 }')
 		for name in snapd firefox; do
 			grep -q "^${name} " "${work}/seeded.txt" || sn_errors+=("${name} is not seeded")
 		done
@@ -1061,7 +1078,7 @@ else
 	[[ -L "${R}/etc/systemd/system/multi-user.target.wants/snapd.seeded.service" ]] || sn_errors+=("snapd.seeded.service is not enabled")
 	[[ -L "${R}/etc/systemd/system/sockets.target.wants/snapd.socket" ]] || sn_errors+=("snapd.socket is not enabled")
 	if [[ ${#sn_errors[@]} -eq 0 ]]; then
-		pass "desktop: ${n_seeded} snaps seeded for the first boot ($(awk '{ printf "%s%s", (NR > 1 ? " " : ""), $1 }' "${work}/seeded.txt")), every snap of snaps.list in its channel, model generic-classic, seed valid (snap debug validate-seed)"
+		pass "desktop: ${n_seeded} snaps seeded for the first boot ($(awk '{ printf "%s%s", (NR > 1 ? " " : ""), $1 }' "${work}/seeded.txt")), every snap of snaps.list in its channel${seed_words}, model generic-classic, seed valid (snap debug validate-seed)"
 	else
 		fail "desktop: ${#sn_errors[@]} problems with the seeded snaps"
 		printf '%s\n' "${sn_errors[@]}" | detail

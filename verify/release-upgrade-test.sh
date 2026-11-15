@@ -70,7 +70,7 @@ grep -qx 'sudo do-release-upgrade' <<< "${steps}" || {
 }
 # The upgrader's non-interactive front end answers its questions as a user
 # accepting the defaults would, without screen (no terminal here).
-steps="$(sed 's/^sudo do-release-upgrade$/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -f DistUpgradeViewNonInteractive/' <<< "${steps}")"
+steps="${steps//sudo do-release-upgrade/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -f DistUpgradeViewNonInteractive}"
 
 work="$(mktemp -d)"
 loop=""
