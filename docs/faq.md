@@ -29,25 +29,42 @@ There are two, and the image's name says which: `edge` or `vendor`.
   new kernel releases, and it is the kernel the hardware test has been run
   with.
 - `vendor` is Armbian's build of Rockchip's own kernel (Linux 6.1). Pick it
-  for what only Rockchip's kernel has: the NPU driver that Rockchip's RKNN
-  runtime talks to, and Rockchip's video codec and camera drivers.
-  Roxora installs none of Rockchip's userspace for them; the kernel side is
-  there for the software you add. The price is an old kernel that gets
-  Rockchip's fixes and not mainline's, no mainline `rocket` NPU driver (so
-  no charsiu), and less testing: no vendor image has been booted on a board
-  by Roxora yet.
+  for what only Rockchip's kernel has. Its configuration, at the pinned
+  commit, builds in:
+  - Rockchip's NPU driver (`CONFIG_ROCKCHIP_RKNPU`), the one Rockchip's
+    RKNN runtime (`librknnrt`) talks to;
+  - Rockchip's MPP video service (`CONFIG_ROCKCHIP_MPP_SERVICE`) with its
+    hardware decoder, encoder, JPEG and AV1 units (`_MPP_RKVDEC2`,
+    `_MPP_RKVENC2`, `_MPP_JPGDEC`, `_MPP_AV1DEC` and others), which
+    Rockchip's MPP library and the programs built on it use;
+  - Rockchip's camera, ISP, RGA and HDMI input drivers
+    (`CONFIG_VIDEO_ROCKCHIP_*`).
 
-Both kernels drive the GPU the same way, and so the desktop is the same on
-both: see the next question.
+  These are kernel drivers only. Roxora installs none of Rockchip's
+  userspace for them (no RKNN runtime, no MPP library): Ubuntu does not
+  package it, and you add it from where you trust. Whether each driver
+  comes up on a given board also depends on the board's device tree in
+  Rockchip's kernel, and none of it has been tested by Roxora yet. The
+  price is an old kernel that gets Rockchip's fixes and not mainline's, no
+  mainline `rocket` NPU driver (so no charsiu), and less testing: no
+  vendor image has been booted on a board by Roxora yet.
+
+The desktop is the same on both kernels: Ubuntu's Mesa on the kernel's
+panfrost driver. See the next question.
 
 ## Does the desktop on the vendor kernel use Rockchip's Mali driver?
 
-No. It uses Ubuntu's Mesa, like the edge images. Rockchip's kernel tree has
-two drivers for the RK3576's Mali-G52: Arm's own (`MALI_BIFROST`, which
-only works with Arm's closed `libmali` userspace) and the open `panfrost`
-driver that Mesa uses. Armbian builds its vendor kernel with panfrost and
-without Arm's driver, so on a Roxora vendor image the GPU is panfrost's and
-the userspace is the Mesa of the Ubuntu release. `verify-image.sh` checks
+No. The vendor desktop images use Mesa with the panfrost driver, exactly
+as the edge images do. There is no Rockchip Mali driver in the kernel and
+no `libmali` in the image.
+
+The reason is how Armbian builds the vendor kernel. Rockchip's kernel tree
+has two drivers for the RK3576's Mali-G52: Arm's own (kbase,
+`CONFIG_MALI_BIFROST`), which only works with Arm's closed `libmali`
+userspace, and the open `panfrost` driver that Mesa uses. Armbian builds
+its vendor kernel with panfrost (`CONFIG_DRM_PANFROST=m`) and without Arm's
+driver, so on a Roxora vendor image the GPU is panfrost's and the userspace
+is the Mesa of the Ubuntu release. `verify-image.sh` checks
 both in the kernel's configuration. That the desktop then runs accelerated
 on the boards has not been tested on hardware yet; on the edge kernel it
 has (ROCK 4D).
@@ -61,7 +78,9 @@ Armbian's.
 
 ## Are hardware video decoding and the NPU supported?
 
-Roxora images use Armbian's `edge` kernel branch, built from mainline Linux.
+This is about the images with Armbian's `edge` kernel, built from mainline
+Linux; for the `vendor` kernel see
+[Which kernel do the images use?](#which-kernel-do-the-images-use).
 The GPU and the video decoders use the upstream kernel drivers, with their
 userspace from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
 decoders. What works depends on the upstream kernel and on the versions in
@@ -83,7 +102,8 @@ fetch a model:
 Other programs reach the Rocket driver through Mesa's Teflon delegate, and
 the Mesa in Ubuntu 24.04 is older than the Mesa releases with Rocket support.
 Rockchip's own RKNN runtime needs Armbian's `vendor` kernel branch, based on
-Rockchip's kernel; [hwtool](https://github.com/roxora-os/hwtool) can switch an
+Rockchip's kernel: start from a `vendor` image, or let
+[hwtool](https://github.com/roxora-os/hwtool) switch an
 installed system to that branch and back (`hwtool kernel switch vendor`, then
 `hwtool kernel revert`).
 

@@ -280,7 +280,7 @@ def notes(args):
     split_images = [i for i in c["images"] if i.get("parts")]
     if split_images:
         out.append("Images in parts: GitHub takes no release file of 2 GiB or more, so the larger images "
-                   "are attached as `<file>.part1`, `<file>.part2`, ... Roxora Imager newer than 0.1.4 downloads "
+                   "are attached as `<file>.part1`, `<file>.part2`, ... Roxora Imager 0.1.5 and later downloads "
                    "and joins them itself. By hand, download every part of the image and its `.sha256` file into one "
                    "directory, then join and check them:")
         out.append("")

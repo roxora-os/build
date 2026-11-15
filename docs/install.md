@@ -50,7 +50,7 @@ if you use it.
 GitHub takes no release file of 2 GiB or more, and a desktop image is
 larger. It is published in parts instead: `<file>.img.xz.part1`,
 `<file>.img.xz.part2` (each up to 1900 MiB), with one `<file>.img.xz.sha256`
-for the joined file. Roxora Imager newer than 0.1.4 downloads the parts,
+for the joined file. Roxora Imager 0.1.5 and later downloads the parts,
 joins and checks them itself. By hand, download every part and the `.sha256`
 file into one directory and join them in order:
 

@@ -268,8 +268,9 @@ differs comes from Armbian:
   mainline build is one `u-boot-rockchip.bin`. `verify-image.sh` compares
   whichever the installed U-Boot package has with the image.
 - The serial console of the vendor kernel is `ttyFIQ0`.
-- The GPU. Armbian's vendor kernel is built with the `panfrost` driver and
-  without Arm's Mali driver for this GPU (`CONFIG_DRM_PANFROST=m`, no
+- The GPU. The vendor desktop images use Mesa and panfrost, not Rockchip's
+  Mali driver or `libmali`: Armbian's vendor kernel is built with the
+  `panfrost` driver and without Arm's kbase driver for this GPU (`CONFIG_DRM_PANFROST=m`, no
   `CONFIG_MALI_BIFROST`), so Mesa drives the Mali-G52 as it does on the edge
   kernel and the desktop flavors need nothing else. The check reads the
   kernel's configuration from the image and fails a desktop image whose
