@@ -25,6 +25,11 @@ declare -g ROXORA_FLAVOR="${ROXORA_FLAVOR:-cli}"
 # shellcheck source=userpatches/roxora/hardware-repo.conf
 source "${ROXORA_DIR}/hardware-repo.conf"
 
+# Roxora's apt repository and the versions of Roxora's packages
+# (ROXORA_REPO_URI, ROXORA_RELEASE, HWTOOL_VERSION, ...).
+# shellcheck source=userpatches/roxora/roxora-repo.conf
+source "${ROXORA_DIR}/roxora-repo.conf"
+
 # The apt pin for the hardware repository, from its template.
 function roxora_render_pin() {
 	sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${ROXORA_DIR}/apt/roxora-hardware.pref.in"
@@ -229,6 +234,28 @@ function custom_apt_repo__roxora_pin_armbian() {
 	rm -f "${SDCARD}"/etc/apt/sources.list.d/armbian.sources*
 }
 
+# Roxora's apt repository, from the last apt setup on (image-late), when the
+# hardware repository is enabled too: the key, the source and its pin, as
+# roxora-release ships them. The packages are installed from it after the
+# image is customized (post_repo_customize_image__roxora_tools_packages);
+# roxora-release then owns these files, and Armbian's armbian.sources, which
+# must be what the package ships for it.
+function custom_apt_repo__roxora_repo() {
+	[[ "${CUSTOM_REPO_WHEN}" == image-late ]] || return 0
+	display_alert "Roxora" "adding Roxora's apt repository ${ROXORA_REPO_URI} (${RELEASE})" "info"
+	declare gpg_home
+	gpg_home="$(mktemp -d)"
+	gpg --homedir "${gpg_home}" --batch --dearmor < "${ROXORA_DIR}/apt/roxora-archive-keyring.asc" > "${SDCARD}/usr/share/keyrings/roxora-archive-keyring.gpg"
+	rm -rf "${gpg_home}"
+	sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${RELEASE}/g" "${ROXORA_DIR}/apt/roxora.sources.in" > "${SDCARD}/etc/apt/sources.list.d/roxora.sources"
+	sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${ROXORA_DIR}/apt/roxora.pref.in" > "${SDCARD}/etc/apt/preferences.d/roxora.pref"
+	if [[ "${HW_REPO}" == armbian ]] &&
+		! cmp -s <(sed -e "s/@SUITE@/${RELEASE}/g" "${ROXORA_DIR}/apt/armbian.sources.in") "${SDCARD}/etc/apt/sources.list.d/armbian.sources"; then
+		exit_with_error "Roxora: Armbian wrote another armbian.sources than roxora-release ships (apt/armbian.sources.in)" \
+			"$(cat "${SDCARD}/etc/apt/sources.list.d/armbian.sources" 2> /dev/null)"
+	fi
+}
+
 # The desktop flavors seed snaps with "snap prepare-image", run on the build
 # host.
 function add_host_dependencies__roxora_snapd() {
@@ -239,15 +266,14 @@ function add_host_dependencies__roxora_snapd() {
 # Seed cloud-init for the first boot and create the default account.
 function post_customize_image__roxora_cloud_init() {
 	display_alert "Roxora" "seeding cloud-init" "info"
-	install -D -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${SDCARD}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
+	# cloud-init's settings, /etc/cloud/cloud.cfg.d/99-roxora.cfg (and
+	# 99-roxora-desktop.cfg on a desktop), come with the release packages.
 	install -d -m 0755 "${SDCARD}/var/lib/cloud/seed/nocloud"
 	install -m 0644 "${ROXORA_DIR}/cloud-init/user-data" "${SDCARD}/var/lib/cloud/seed/nocloud/user-data"
+	# A desktop has no network seed: NetworkManager runs the network there
+	# (see post_repo_customize_image__roxora_task_desktop).
 	if [[ "${ROXORA_FLAVOR}" == cli ]]; then
 		install -m 0644 "${ROXORA_DIR}/cloud-init/network-config" "${SDCARD}/var/lib/cloud/seed/nocloud/network-config"
-	else
-		# NetworkManager runs the network on a desktop (see
-		# post_repo_customize_image__roxora_task_desktop).
-		install -m 0644 "${ROXORA_DIR}/desktop/99-roxora-desktop.cfg" "${SDCARD}/etc/cloud/cloud.cfg.d/99-roxora-desktop.cfg"
 	fi
 	sed -e "s/@HOSTNAME@/${HOST}/g" "${ROXORA_DIR}/cloud-init/meta-data" > "${SDCARD}/var/lib/cloud/seed/nocloud/meta-data"
 
@@ -271,12 +297,8 @@ function post_customize_image__roxora_cloud_init() {
 	# Like Ubuntu: root has no password; the default user uses sudo.
 	chroot_sdcard usermod -p "'*'" root
 
-	# The system font directories, empty until a font package is installed.
-	# snapd gives a snap the host's fonts only through directories that exist
-	# when it sets the snap up; installing a desktop on this image put the
-	# Firefox snap in before the first font package, and Firefox then had no
-	# system fonts (no CJK text) until firefox:desktop was reconnected.
-	install -d -m 0755 "${SDCARD}/usr/share/fonts" "${SDCARD}/usr/local/share/fonts"
+	# The system font directories, which snaps need to see the system's
+	# fonts, come with roxora-release.
 }
 
 # Undo what Armbian changed in Ubuntu's own packages and remove the files it
@@ -556,90 +578,44 @@ function roxora_seed_snaps() {
 	done
 }
 
-# Preinstall hwtool (userpatches/roxora/hwtool.conf): the command line
-# package in every image, and the GTK app in the desktop flavors.
-# Runs after the Ubuntu files are restored, so dpkg --verify sees it as
+# Roxora's packages, from Roxora's apt repository (roxora-repo.conf) at the
+# versions given there: the keyring, hwtool (and its GTK app in the desktop
+# flavors) and the wallpapers. The release packages of this commit,
+# roxora-release and the flavor's package, are built here by
+# packages/build.sh, the script roxora-os/apt runs at the release's tag to
+# publish them; their dependencies come from the repositories. They take
+# over the configuration files the image has so far (the apt sources and
+# pins, cloud-init's settings), which must be exactly what they ship.
+# Runs after the Ubuntu files are restored, so dpkg --verify sees them as
 # installed, and before the late packages are fetched.
-function post_repo_customize_image__roxora_tools_hwtool() {
-	declare HWTOOL_VERSION HWTOOL_DEB_URL HWTOOL_DEB_SHA256 HWTOOL_GTK_DEB_URL HWTOOL_GTK_DEB_SHA256
-	# shellcheck source=userpatches/roxora/hwtool.conf
-	source "${ROXORA_DIR}/hwtool.conf"
-	declare -a debs=("roxora-hwtool ${HWTOOL_DEB_URL} ${HWTOOL_DEB_SHA256}")
-	[[ "${ROXORA_FLAVOR}" == cli ]] || debs+=("roxora-hwtool-gtk ${HWTOOL_GTK_DEB_URL} ${HWTOOL_GTK_DEB_SHA256}")
-	declare -a files=()
-	declare entry pkg url sum
-	display_alert "Roxora" "installing hwtool ${HWTOOL_VERSION}" "info"
-	for entry in "${debs[@]}"; do
-		read -r pkg url sum <<< "${entry}"
-		run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${SDCARD}/tmp/${pkg}.deb" "${url}"
-		echo "${sum}  ${SDCARD}/tmp/${pkg}.deb" | sha256sum --check --status ||
-			exit_with_error "Roxora: ${url} does not match its SHA-256 in hwtool.conf"
-		files+=("/tmp/${pkg}.deb")
-	done
-	chroot_sdcard_apt_get install "${files[@]}"
-	for entry in "${debs[@]}"; do
-		read -r pkg url sum <<< "${entry}"
-		rm -f "${SDCARD}/tmp/${pkg}.deb"
-		[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' "${pkg}")" == "${HWTOOL_VERSION}" ]] ||
-			exit_with_error "Roxora: ${pkg} ${HWTOOL_VERSION} is not installed"
-	done
-}
+function post_repo_customize_image__roxora_tools_packages() {
+	declare out="${SDCARD}/tmp/roxora-packages"
+	display_alert "Roxora" "release packages ${ROXORA_RELEASE} (${ROXORA_FLAVOR}), hwtool ${HWTOOL_VERSION}, wallpapers ${WALLPAPERS_VERSION}" "info"
+	run_host_command_logged bash "${ROXORA_DIR}/packages/build.sh" --suite "${RELEASE}" --flavor "${ROXORA_FLAVOR}" --out "${out}"
+	declare flavor_pkg=roxora-cli
+	[[ "${ROXORA_FLAVOR}" == cli ]] || flavor_pkg="roxora-desktop-${ROXORA_FLAVOR}"
+	declare release_deb flavor_deb
+	release_deb="$(cd "${out}" && echo roxora-release_*_all.deb)"
+	flavor_deb="$(cd "${out}" && echo "${flavor_pkg}"_*_all.deb)"
+	[[ -f "${out}/${release_deb}" && -f "${out}/${flavor_deb}" ]] ||
+		exit_with_error "Roxora: packages/build.sh wrote no roxora-release or ${flavor_pkg}"
+	declare -a want=("roxora-archive-keyring=${KEYRING_VERSION}" "roxora-hwtool=${HWTOOL_VERSION}" "roxora-wallpapers=${WALLPAPERS_VERSION}")
+	[[ "${ROXORA_FLAVOR}" == cli ]] || want+=("roxora-hwtool-gtk=${HWTOOL_VERSION}")
+	chroot_sdcard_apt_get install "${want[@]}" "/tmp/roxora-packages/${release_deb}" "/tmp/roxora-packages/${flavor_deb}"
+	rm -rf "${out}"
 
-# Preinstall roxora-wallpapers, built here from roxora-os/design at a fixed
-# commit (userpatches/roxora/wallpapers/). Nothing shows on a command line
-# image; with a GNOME desktop the wallpapers are in Settings and Facet is the
-# default.
-function post_repo_customize_image__roxora_tools_wallpapers() {
-	declare WALLPAPERS_VERSION WALLPAPERS_DESIGN_COMMIT
-	declare -a WALLPAPERS_FILES=()
-	# shellcheck source=userpatches/roxora/wallpapers/wallpapers.conf
-	source "${ROXORA_DIR}/wallpapers/wallpapers.conf"
-	declare version="${WALLPAPERS_VERSION}+git${WALLPAPERS_DESIGN_COMMIT:0:7}"
-	display_alert "Roxora" "building roxora-wallpapers ${version}" "info"
-	declare work pkg entry file sum
-	work="$(mktemp -d)"
-	pkg="${work}/pkg"
-	mkdir -p "${pkg}/DEBIAN" "${pkg}/usr/share/backgrounds/roxora" "${pkg}/usr/share/doc/roxora-wallpapers" \
-		"${pkg}/usr/share/gnome-background-properties" "${pkg}/usr/share/glib-2.0/schemas"
-	for entry in "${WALLPAPERS_FILES[@]}"; do
-		read -r file sum <<< "${entry}"
-		run_host_command_logged curl --fail --silent --show-error --location --retry 3 -o "${work}/${file}" \
-			"https://raw.githubusercontent.com/roxora-os/design/${WALLPAPERS_DESIGN_COMMIT}/wallpapers/${file}"
-		echo "${sum}  ${work}/${file}" | sha256sum --check --status ||
-			exit_with_error "Roxora: design ${WALLPAPERS_DESIGN_COMMIT} wallpapers/${file} does not match wallpapers.conf"
-		[[ "${file}" == *.png ]] && install -m 0644 "${work}/${file}" "${pkg}/usr/share/backgrounds/roxora/${file}"
+	declare entry pkg version
+	for entry in "${want[@]}" "roxora-release=${release_deb#*_}" "${flavor_pkg}=${flavor_deb#*_}"; do
+		pkg="${entry%%=*}" version="${entry#*=}"
+		version="${version%_all.deb}"
+		[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${db:Status-Abbrev}${Version}' "${pkg}")" == "ii ${version}" ]] ||
+			exit_with_error "Roxora: ${pkg} ${version} is not installed"
 	done
-	install -m 0644 "${ROXORA_DIR}/wallpapers/roxora-wallpapers.xml" "${pkg}/usr/share/gnome-background-properties/roxora-wallpapers.xml"
-	install -m 0644 "${ROXORA_DIR}/wallpapers/90_roxora-wallpapers.gschema.override" \
-		"${pkg}/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override"
-	{
-		printf '%s\n' "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" \
-			"Upstream-Name: Roxora wallpapers" \
-			"Source: https://github.com/roxora-os/design/tree/${WALLPAPERS_DESIGN_COMMIT}/wallpapers" "" \
-			"Files: *" "Copyright: 2026 DavidQyn" "           2026 Ga Hing Woo" "License: CC-BY-SA-4.0" "" \
-			"License: CC-BY-SA-4.0"
-		sed -e 's/^$/./' -e 's/^/ /' "${work}/LICENSE"
-	} > "${pkg}/usr/share/doc/roxora-wallpapers/copyright"
-	cat > "${pkg}/DEBIAN/control" <<- CONTROL
-		Package: roxora-wallpapers
-		Version: ${version}
-		Architecture: all
-		Maintainer: Roxora Project <oss@gahingwoo.com>
-		Section: graphics
-		Priority: optional
-		Homepage: https://github.com/roxora-os/design
-		Description: Roxora desktop wallpapers
-		 Four wallpapers in light and dark versions for the GNOME background list,
-		 with Roxora Facet as the default wallpaper. By DavidQyn and Ga Hing Woo,
-		 CC BY-SA 4.0.
-	CONTROL
-	chmod -R u=rwX,go=rX "${pkg}"
-	dpkg-deb --root-owner-group --build "${pkg}" "${SDCARD}/tmp/roxora-wallpapers.deb" > /dev/null
-	rm -rf "${work}"
-	chroot_sdcard_apt_get install /tmp/roxora-wallpapers.deb
-	rm -f "${SDCARD}/tmp/roxora-wallpapers.deb"
-	[[ "$(chroot_sdcard_with_stdout dpkg-query -W -f '${Version}' roxora-wallpapers)" == "${version}" ]] ||
-		exit_with_error "Roxora: roxora-wallpapers ${version} is not installed"
+	# The packages' configuration files are as they ship them: what the
+	# image had there was taken over, not kept.
+	declare changed
+	changed="$(chroot_sdcard_with_stdout dpkg --verify roxora-release "${flavor_pkg}" roxora-archive-keyring 2>&1 || true)"
+	[[ -z "${changed}" ]] || exit_with_error "Roxora: Roxora's packages do not have their files as shipped" "${changed}"
 }
 
 function post_repo_customize_image__roxora_zz_fetch_late_packages() {
