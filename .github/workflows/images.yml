@@ -13,6 +13,10 @@ on:
         description: Build kernel, U-Boot and every other artifact here instead of taking Armbian's cached builds
         type: boolean
         default: false
+      only:
+        description: Build only the lines of boards.conf whose "board branch release flavor" matches this extended regular expression (empty for all)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -28,8 +32,10 @@ jobs:
           persist-credentials: false
       - id: boards
         name: Read boards.conf
+        env:
+          ONLY: ${{ inputs.only }}
         run: |
-          include="$(awk '!/^[[:space:]]*(#|$)/ { printf "%s{\"board\":\"%s\",\"branch\":\"%s\",\"release\":\"%s\",\"flavor\":\"%s\",\"suffix\":\"%s\"}", (n++ ? "," : ""), $1, $2, $3, $4, ($4 == "cli" ? "" : "-" $4) }' boards.conf)"
+          include="$(awk -v only="${ONLY}" '!/^[[:space:]]*(#|$)/ && (only == "" || ($1 " " $2 " " $3 " " $4) ~ only) { printf "%s{\"board\":\"%s\",\"branch\":\"%s\",\"release\":\"%s\",\"flavor\":\"%s\",\"suffix\":\"%s\"}", (n++ ? "," : ""), $1, $2, $3, $4, ($4 == "cli" ? "" : "-" $4) }' boards.conf)"
           echo "include=[${include}]" >> "$GITHUB_OUTPUT"
           echo "[${include}]"
 

@@ -7,6 +7,10 @@ on:
         description: Build everything from source, as a release does
         type: boolean
         default: false
+      only:
+        description: Only the boards.conf lines whose "board branch release flavor" matches this regular expression (empty for all)
+        type: string
+        default: ""
   pull_request:
     paths:
       - build.sh
@@ -26,3 +30,4 @@ jobs:
     with:
       version: ci.${{ github.run_number }}
       from_source: ${{ inputs.from_source == true }}
+      only: ${{ inputs.only || '' }}
