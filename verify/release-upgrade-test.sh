@@ -55,7 +55,7 @@ cleanup() {
 		[[ "$(readlink "${p}/root" 2> /dev/null)" == "${mnt}" ]] && kill "${p##*/}" 2> /dev/null
 	done
 	sleep 1
-	for m in run dev/pts dev sys proc boot/efi ""; do
+	for m in run dev/pts dev sys/fs/cgroup sys proc boot/efi ""; do
 		mountpoint -q "${mnt}/${m}" && umount -l "${mnt}/${m}"
 	done
 	[[ -n "${loop}" ]] && losetup -d "${loop}"
@@ -78,6 +78,10 @@ esp_num="$(awk 'tolower($0) ~ /type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b/ { sub(
 [[ -z "${esp_num}" ]] || mount "${loop}p${esp_num}" "${mnt}/boot/efi"
 mount -t proc proc "${mnt}/proc"
 mount -t sysfs sysfs "${mnt}/sys"
+# The upgrader to 26.04 refuses a system not booted with the unified cgroup
+# v2 hierarchy, which it reads from /sys/fs/cgroup: the host's (GitHub's
+# runners have it, as Ubuntu 24.04 does by default).
+mount -t cgroup2 cgroup2 "${mnt}/sys/fs/cgroup"
 mount --bind /dev "${mnt}/dev"
 mount --bind /dev/pts "${mnt}/dev/pts"
 mount -t tmpfs tmpfs "${mnt}/run"

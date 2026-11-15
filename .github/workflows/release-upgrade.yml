@@ -74,7 +74,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          sudo verify/verify-image.sh --upgraded --flavor cli upgraded.img | tee logs/verify.txt
+          sudo verify/verify-image.sh --upgraded --flavor cli upgraded.img | sudo tee logs/verify.txt
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
