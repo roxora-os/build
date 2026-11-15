@@ -21,9 +21,10 @@
 # --release-debs DIR: release packages of this commit for both Ubuntu
 # releases (DIR/noble/, DIR/resolute/), for a release that Roxora's
 # repository does not publish yet. They are offered from a local repository
-# with one suite per release, which the upgrader is told to move like
-# Roxora's own (a second [ThirdPartyMirrors] entry), and removed again
-# afterwards.
+# with one suite per release, served over HTTP on 127.0.0.1 (the upgrader
+# does not accept a file: source as downloadable), which the upgrader is
+# told to move like Roxora's own (a second [ThirdPartyMirrors] entry), and
+# removed again afterwards.
 #
 # Services do not run in the chroot and snapd is not running, so the
 # upgrader's snap steps are skipped; this says nothing about a running
@@ -81,6 +82,7 @@ cleanup() {
 		[[ "$(readlink "${p}/root" 2> /dev/null)" == "${mnt}" ]] && kill "${p##*/}" 2> /dev/null
 	done
 	sleep 1
+	[[ -n "${server:-}" ]] && kill "${server}" 2> /dev/null
 	for m in run dev/pts dev sys/fs/cgroup sys proc boot/efi ""; do
 		mountpoint -q "${mnt}/${m}" && umount -l "${mnt}/${m}"
 	done
@@ -123,21 +125,27 @@ in_chroot() {
 	chroot "${mnt}" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LC_ALL=C.UTF-8 TERM=dumb "$@" < /dev/null
 }
 
-test_repo=/tmp/roxora-release-test
+test_repo="${work}/test-repo"
+test_uri=http://127.0.0.1:8765
+server=""
 if [[ -n "${release_debs}" ]]; then
 	declare suite
 	for suite in noble resolute; do
-		d="${mnt}${test_repo}/dists/${suite}/main/binary-arm64"
-		mkdir -p "${d}" "${mnt}${test_repo}/pool/${suite}"
-		cp "${release_debs}/${suite}"/*.deb "${mnt}${test_repo}/pool/${suite}/"
-		(cd "${mnt}${test_repo}" && apt-ftparchive packages "pool/${suite}" > "dists/${suite}/main/binary-arm64/Packages")
-		(cd "${mnt}${test_repo}/dists/${suite}" && apt-ftparchive -o "APT::FTPArchive::Release::Suite=${suite}" \
+		d="${test_repo}/dists/${suite}/main/binary-arm64"
+		mkdir -p "${d}" "${test_repo}/pool/${suite}"
+		cp "${release_debs}/${suite}"/*.deb "${test_repo}/pool/${suite}/"
+		(cd "${test_repo}" && apt-ftparchive packages "pool/${suite}" > "dists/${suite}/main/binary-arm64/Packages")
+		(cd "${test_repo}/dists/${suite}" && apt-ftparchive -o "APT::FTPArchive::Release::Suite=${suite}" \
 			-o "APT::FTPArchive::Release::Codename=${suite}" -o APT::FTPArchive::Release::Components=main \
 			-o APT::FTPArchive::Release::Architectures=arm64 release . > "${work}/Release" && mv "${work}/Release" Release)
 	done
-	printf '%s\n' 'Types: deb' "URIs: file:${test_repo}" 'Suites: noble' 'Components: main' 'Trusted: yes' \
+	python3 -m http.server --bind 127.0.0.1 --directory "${test_repo}" 8765 > "${work}/http.log" 2>&1 &
+	server=$!
+	sleep 2
+	curl -fsS "${test_uri}/dists/resolute/Release" > /dev/null
+	printf '%s\n' 'Types: deb' "URIs: ${test_uri}" 'Suites: noble' 'Components: main' 'Trusted: yes' \
 		> "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.sources"
-	printf '%s\n' '[ThirdPartyMirrors]' "roxora-release-test = file:${test_repo}" \
+	printf '%s\n' '[ThirdPartyMirrors]' "roxora-release-test = ${test_uri}" \
 		> "${mnt}/etc/update-manager/release-upgrades.d/zz-roxora-release-test.cfg"
 fi
 
@@ -195,8 +203,8 @@ grep -q '^0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded' "${work
 }
 cp -a "${mnt}/var/log/dist-upgrade" "${logs}/" 2> /dev/null || true
 
-rm -rf "${mnt}${test_repo}" "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.sources" \
-	"${mnt}/etc/update-manager/release-upgrades.d/zz-roxora-release-test.cfg" "${mnt}"/var/lib/apt/lists/_tmp_roxora-release-test_*
+rm -f "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.sources" \
+	"${mnt}/etc/update-manager/release-upgrades.d/zz-roxora-release-test.cfg" "${mnt}"/var/lib/apt/lists/127.0.0.1:8765_*
 rm -f "${mnt}/usr/sbin/policy-rc.d" "${mnt}/etc/apt/apt.conf.d/00roxora-upgrade-test" "${mnt}/etc/resolv.conf" "${mnt}"/etc/ssh/ssh_host_*
 in_chroot apt-get clean || true
 if [[ -e "${work}/resolv.conf.saved" || -L "${work}/resolv.conf.saved" ]]; then
