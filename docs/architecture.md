@@ -251,6 +251,32 @@ another SoC is a board file that names its family, SoC and serial console
 (see [adding-a-board.md](adding-a-board.md#a-uefi-image-for-another-soc)).
 The hostname is the image name, `generic-rk3576-uefi`.
 
+## Kernel branches
+
+Each board image exists with Armbian's `edge` kernel (mainline Linux) and
+with its `vendor` kernel (Rockchip's Linux 6.1, the `rk35xx` family's
+`vendor` branch); `boards.conf` has a row for each. Everything above holds
+for both: the same extension, the same Ubuntu userspace, the same pin. What
+differs comes from Armbian:
+
+- The kernel packages are `linux-image-vendor-rk35xx` and
+  `linux-dtb-vendor-rk35xx`, updated from Armbian's repository like the
+  edge ones.
+- U-Boot. The ROCK 4D uses mainline U-Boot with either kernel. The CM5-IO
+  with the vendor kernel uses Rockchip's U-Boot, which the image carries as
+  two files, `idbloader.img` at 32 KiB and `u-boot.itb` at 8 MiB, where the
+  mainline build is one `u-boot-rockchip.bin`. `verify-image.sh` compares
+  whichever the installed U-Boot package has with the image.
+- The serial console of the vendor kernel is `ttyFIQ0`.
+- The GPU. Armbian's vendor kernel is built with the `panfrost` driver and
+  without Arm's Mali driver for this GPU (`CONFIG_DRM_PANFROST=m`, no
+  `CONFIG_MALI_BIFROST`), so Mesa drives the Mali-G52 as it does on the edge
+  kernel and the desktop flavors need nothing else. The check reads the
+  kernel's configuration from the image and fails a desktop image whose
+  kernel has no panfrost, or has Arm's driver, or that carries a `libmali`.
+
+The UEFI image has both branches too, command line only for `vendor`.
+
 ## Desktop flavors
 
 `boards.conf` gives every image a flavor. `cli` is the command line image
@@ -396,8 +422,9 @@ says nothing about the board's hardware.
 - No `armbian-config`, and no Roxora replacement for it. Configuration is
   done the Ubuntu way.
 - No desktop of its own. The desktop flavors are Ubuntu's GNOME desktop as
-  Ubuntu packages it; there are no other desktops, and no desktop images
-  with the vendor kernel.
+  Ubuntu packages it; there are no other desktops. With the vendor kernel
+  the desktop is the same: Mesa on the kernel's panfrost driver, and no
+  Mali userspace from Rockchip (see [faq.md](faq.md#does-the-desktop-on-the-vendor-kernel-use-rockchips-mali-driver)).
 - No Debian images. Roxora is Ubuntu only, starting with 24.04 (noble).
 - No apt repository of its own. Userspace updates come from the Ubuntu
   archive, hardware updates from Armbian. Roxora's own packages in the

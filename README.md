@@ -62,6 +62,10 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | edge | cli, gnome-minimal, gnome | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | cli: hardware-tested; desktop: ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | ci-only |
+| Radxa ROCK 4D | RK3576 | 24.04 (noble) | vendor | cli, gnome-minimal, gnome | ci-only |
+| ArmSoM CM5-IO | RK3576 | 24.04 (noble) | vendor | cli, gnome-minimal, gnome | ci-only |
+| Radxa ROCK 4D | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
+| ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | edge | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | vendor | cli | ci-only |

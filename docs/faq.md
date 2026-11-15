@@ -21,9 +21,43 @@ want Armbian's tools, use Armbian's images.
 
 ## Which kernel do the images use?
 
-Armbian's `edge` kernel branch, built from mainline Linux (7.3.y at the
-armbian/build commit in [`armbian.ref`](../armbian.ref)). Armbian's `vendor`
-branch, based on Rockchip's kernel, may be added once the edge images work.
+There are two, and the image's name says which: `edge` or `vendor`.
+
+- `edge` is Armbian's kernel built from mainline Linux (7.3.y at the
+  armbian/build commit in [`armbian.ref`](../armbian.ref)). Pick it unless
+  you need something below. Its drivers are the upstream ones, it follows
+  new kernel releases, and it is the kernel the hardware test has been run
+  with.
+- `vendor` is Armbian's build of Rockchip's own kernel (Linux 6.1). Pick it
+  for what only Rockchip's kernel has: the NPU driver that Rockchip's RKNN
+  runtime talks to, and Rockchip's video codec and camera drivers.
+  Roxora installs none of Rockchip's userspace for them; the kernel side is
+  there for the software you add. The price is an old kernel that gets
+  Rockchip's fixes and not mainline's, no mainline `rocket` NPU driver (so
+  no charsiu), and less testing: no vendor image has been booted on a board
+  by Roxora yet.
+
+Both kernels drive the GPU the same way, and so the desktop is the same on
+both: see the next question.
+
+## Does the desktop on the vendor kernel use Rockchip's Mali driver?
+
+No. It uses Ubuntu's Mesa, like the edge images. Rockchip's kernel tree has
+two drivers for the RK3576's Mali-G52: Arm's own (`MALI_BIFROST`, which
+only works with Arm's closed `libmali` userspace) and the open `panfrost`
+driver that Mesa uses. Armbian builds its vendor kernel with panfrost and
+without Arm's driver, so on a Roxora vendor image the GPU is panfrost's and
+the userspace is the Mesa of the Ubuntu release. `verify-image.sh` checks
+both in the kernel's configuration. That the desktop then runs accelerated
+on the boards has not been tested on hardware yet; on the edge kernel it
+has (ROCK 4D).
+
+`libmali` is therefore not in any image, and installing it would not work:
+it has no kernel driver to talk to. It would also replace Mesa's EGL and
+GBM libraries with its own, and Armbian's own notes for another RK3576
+board say GNOME's Wayland session crashes on it. Software that needs
+Arm's driver (Rockchip's OpenCL, for one) needs another kernel build than
+Armbian's.
 
 ## Are hardware video decoding and the NPU supported?
 

@@ -25,8 +25,10 @@ account.
 A desktop image is a download of 2.2 to 2.9 GB and 7 to 9 GB once
 written, against 0.4 to 0.5 GB and 2 to 2.7 GB for the command line image. It
 needs a card or drive of 16 GB or more, and a display on HDMI with a
-keyboard and mouse. Desktop images are built with the `edge`
-kernel only. You can also start from the command line image and add the
+keyboard and mouse. Each board image comes with either of two kernels,
+`edge` or `vendor` in the file name where the examples here say `edge`; the
+[FAQ](faq.md#which-kernel-do-the-images-use) says which to pick, and `edge`
+is the default. You can also start from the command line image and add the
 desktop later with `sudo apt install ubuntu-desktop-minimal`; the
 [FAQ](faq.md#are-there-desktop-images) says what differs then.
 
