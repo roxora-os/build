@@ -1,0 +1,84 @@
+# Tries Ubuntu's release upgrade (24.04 to 26.04, do-release-upgrade) on a
+# Roxora command line image in a chroot (verify/release-upgrade-test.sh) and
+# keeps the logs. An experiment: Roxora does not support release upgrades
+# yet (docs/install.md), and this workflow is how to find out what that
+# needs. The image is a published 24.04 image, first updated to this
+# commit's release by verify/upgrade-test.sh.
+name: Release upgrade
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Release tag of the 24.04 image
+        type: string
+        default: v2026.11.4
+  push:
+    paths:
+      - verify/release-upgrade-test.sh
+      - .github/workflows/release-upgrade.yml
+
+permissions:
+  contents: read
+
+jobs:
+  release-upgrade:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        third_party: [false, true]
+    env:
+      FROM: ${{ inputs.from || 'v2026.11.4' }}
+      NAME: roxora-radxa-rock-4d-noble-edge
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends apt-utils snapd u-boot-tools xz-utils > /dev/null
+
+      - name: The 24.04 image, updated to this commit's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          userpatches/roxora/packages/build.sh --suite noble --flavor cli --out release-debs
+          gh release download "${FROM}" --repo roxora-os/build --dir old \
+            --pattern "${NAME}-${FROM#v}.img.xz" --pattern "${NAME}-${FROM#v}.img.xz.sha256"
+          (cd old && sha256sum -c ./*.sha256)
+          sudo verify/upgrade-test.sh --release-debs release-debs "old/${NAME}-${FROM#v}.img.xz" upgraded.img
+          rm -rf old
+
+      - name: do-release-upgrade
+        id: dru
+        continue-on-error: true
+        env:
+          THIRD_PARTY: ${{ matrix.third_party }}
+        run: |
+          args=()
+          [[ "${THIRD_PARTY}" == true ]] && args=(--allow-third-party)
+          sudo verify/release-upgrade-test.sh "${args[@]}" upgraded.img logs
+
+      - name: Verify the result as a 26.04 system
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          sudo verify/verify-image.sh --upgraded --flavor cli upgraded.img | tee logs/verify.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: release-upgrade-third-party-${{ matrix.third_party }}
+          path: logs/
+          if-no-files-found: ignore
