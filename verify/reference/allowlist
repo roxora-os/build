@@ -7,6 +7,8 @@
 # Roxora's own additions and the board support package
 armbian-bsp-cli-radxa-rock-4d-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
 armbian-bsp-cli-armsom-cm5-io-edge  board support package, filtered to its hardware parts (docs/bsp-classification.md); built with the image
+armbian-bsp-cli-radxa-rock-4d-vendor  board support package for the vendor kernel, filtered to its hardware parts (docs/bsp-classification.md); built with the image
+armbian-bsp-cli-armsom-cm5-io-vendor  board support package for the vendor kernel, filtered to its hardware parts (docs/bsp-classification.md); built with the image
 armbian-bsp-cli-generic-rk3576-uefi-edge-grub  board support package of the RK3576 UEFI image (Armbian adds -grub on GRUB images), filtered to its hardware parts (docs/bsp-classification.md); built with the image
 armbian-bsp-cli-generic-rk3576-uefi-vendor-grub  board support package of the RK3576 UEFI image with the vendor kernel (Armbian adds -grub on GRUB images), filtered to its hardware parts (docs/bsp-classification.md); built with the image
 

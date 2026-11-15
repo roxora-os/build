@@ -584,17 +584,30 @@ else
 	if command -v dumpimage > /dev/null && [[ -f "${R}/boot/uInitrd" ]]; then
 		dumpimage -l "${R}/boot/uInitrd" 2> /dev/null | grep -q 'RAMDisk Image' || boot_errors+=("/boot/uInitrd is not a U-Boot ramdisk image")
 	fi
-	# The bootloader at 32 KiB must be the one the installed U-Boot package carries.
+	# The bootloader in the image must be the one the installed U-Boot package
+	# carries, where Armbian's write_uboot_platform puts it: one
+	# u-boot-rockchip.bin at 32 KiB, or (Rockchip's U-Boot, as the CM5-IO has
+	# with the vendor kernel) idbloader.img at 32 KiB and u-boot.itb at 8 MiB.
+	udir="$(find "${R}"/usr/lib/linux-u-boot-* -maxdepth 0 -type d 2> /dev/null | head -1)"
+	# same_at <file> <offset in 512-byte sectors>
+	same_at() {
+		local size
+		size="$(stat -c %s "$1")"
+		cmp -s -n "${size}" "$1" <(dd if="${loop}" bs=512 skip="$2" count=$(((size + 511) / 512)) status=none)
+	}
 	if [[ -n "${ubin}" ]]; then
-		size="$(stat -c %s "${ubin}")"
-		if ! cmp -s -n "${size}" "${ubin}" <(dd if="${loop}" bs=32k skip=1 count=$(((size + 32767) / 32768)) status=none); then
-			boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
-		fi
+		same_at "${ubin}" 64 || boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
+		uwords="${ubin#"${R}"}"
+	elif [[ -n "${udir}" && -f "${udir}/idbloader.img" && -f "${udir}/u-boot.itb" ]]; then
+		same_at "${udir}/idbloader.img" 64 || boot_errors+=("idbloader at 32 KiB differs from ${udir#"${R}"}/idbloader.img")
+		same_at "${udir}/u-boot.itb" 16384 || boot_errors+=("U-Boot at 8 MiB differs from ${udir#"${R}"}/u-boot.itb")
+		uwords="${udir#"${R}"}/idbloader.img and u-boot.itb"
 	else
-		boot_errors+=("no u-boot-rockchip.bin in /usr/lib/linux-u-boot-*")
+		boot_errors+=("no u-boot-rockchip.bin, and no idbloader.img with u-boot.itb, in /usr/lib/linux-u-boot-*")
+		uwords="none"
 	fi
 	if [[ ${#boot_errors[@]} -eq 0 ]]; then
-		pass "boot: boot.scr, armbianEnv.txt, fdtfile=${fdtfile} (from ${fdtsource}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${ubin#"${R}"}"
+		pass "boot: boot.scr, armbianEnv.txt, fdtfile=${fdtfile} (from ${fdtsource}), Image, uInitrd and dtb in place for kernel ${kver}; bootloader matches ${uwords}"
 	else
 		fail "boot: ${#boot_errors[@]} problems"
 		printf '%s\n' "${boot_errors[@]}" | detail
@@ -795,8 +808,23 @@ else
 	is_installed fonts-noto-cjk || dt_errors+=("fonts-noto-cjk is not installed")
 	compgen -G "${R}/usr/share/fonts/opentype/noto/NotoSansCJK*" > /dev/null ||
 		dt_errors+=("no Noto Sans CJK font files in /usr/share/fonts/opentype/noto")
+	# The GPU: the desktop runs on Ubuntu's Mesa, whose driver for the
+	# RK3576's Mali-G52 needs the kernel's panfrost driver. Armbian builds
+	# it for the edge kernel and for Rockchip's vendor kernel alike, and
+	# leaves out Arm's own kernel driver for this GPU (MALI_BIFROST), which
+	# would take the GPU and only works with Arm's closed userspace.
+	kconfig="${R}/boot/config-${kver}"
+	if [[ ! -f "${kconfig}" ]]; then
+		dt_errors+=("no /boot/config-${kver}, cannot tell which GPU driver the kernel has")
+	else
+		grep -Eq '^CONFIG_DRM_PANFROST=[ym]' "${kconfig}" || dt_errors+=("kernel ${kver} has no panfrost driver (CONFIG_DRM_PANFROST), Mesa cannot use the GPU")
+		grep -Eq '^CONFIG_MALI_BIFROST=[ym]' "${kconfig}" && dt_errors+=("kernel ${kver} builds Arm's Mali kernel driver (CONFIG_MALI_BIFROST), which takes the GPU from panfrost")
+		compgen -G "${R}/lib/modules/${kver}/kernel/drivers/gpu/drm/panfrost/panfrost.ko*" > /dev/null ||
+			grep -q '^CONFIG_DRM_PANFROST=y' "${kconfig}" || dt_errors+=("panfrost.ko is not in /lib/modules/${kver}")
+	fi
+	compgen -G "${R}/usr/lib/aarch64-linux-gnu/libmali*" > /dev/null && dt_errors+=("a Mali userspace library is installed (the desktop uses Ubuntu's Mesa)")
 	if [[ ${#dt_errors[@]} -eq 0 ]]; then
-		pass "desktop: GDM is the display manager and starts at boot (graphical.target), GNOME Shell and Ubuntu's session installed, no automatic login, CJK fonts in /usr/share/fonts"
+		pass "desktop: GDM is the display manager and starts at boot (graphical.target), GNOME Shell and Ubuntu's session installed, no automatic login, CJK fonts in /usr/share/fonts; kernel ${kver} has panfrost for Mesa and not Arm's Mali driver"
 	else
 		fail "desktop: ${#dt_errors[@]} problems with the session"
 		printf '%s\n' "${dt_errors[@]}" | detail
