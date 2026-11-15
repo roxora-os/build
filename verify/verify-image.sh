@@ -22,7 +22,8 @@
 #            checks are the same, except that the bootloader written to the
 #            disk may be older than the installed U-Boot package (an update of
 #            the package does not write it, on a board either), the packages
-#            of reference/allowlist-upgraded are allowed, and a desktop
+#            of reference/allowlist-upgraded and the changes of
+#            reference/keep-modified-upgraded are allowed, and a desktop
 #            image's snap seed may be that of the release it was made for.
 #
 # A desktop image also needs the snap command on the host (package snapd),
@@ -53,7 +54,7 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--flavor=*) want_flavor="${arg#*=}" ;;
 		-h | --help)
-			sed -n '5,31s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,32s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*) image="${arg}" ;;
@@ -449,10 +450,12 @@ else
 fi
 
 mapfile -t keep < <(list "${LISTS}/keep-modified.list")
+[[ "${upgraded}" == yes ]] && mapfile -t -O "${#keep[@]}" keep < <(list "${REF}/keep-modified-upgraded" | awk '{ print $1 }')
 # dpkg --verify exits non-zero when it finds changed files, so judge it by
 # its error output: anything on stderr means it could not check.
 in_root dpkg --verify > "${work}/dpkg-verify.txt" 2> "${work}/dpkg-verify.err" || true
 changed=()
+upgraded_conffiles=()
 while read -r path; do
 	owner="$(in_root dpkg-query -S "${path}" 2> /dev/null | head -1 | sed 's/: .*//')"
 	[[ "${owner}" =~ ^(linux-image|linux-dtb|linux-headers|linux-u-boot|armbian-firmware|armbian-bsp-cli) ]] && continue
@@ -461,13 +464,24 @@ while read -r path; do
 		# shellcheck disable=SC2053 # glob match on purpose
 		[[ "${path}" == ${k} ]] && skip=yes && break
 	done
+	# After a release upgrade a configuration file can move to another
+	# package (cloud.cfg from cloud-init to cloud-init-base in 26.04) and the
+	# old one keep it as an obsolete conffile with its old hash, which dpkg
+	# --verify reports. It counts as unchanged when the file is what the
+	# package that now ships it recorded.
+	if [[ "${skip}" == no && "${upgraded}" == yes ]] && grep -Eq "^\?\?5\?{6} c ${path}\$" "${work}/dpkg-verify.txt"; then
+		sum="$(in_root md5sum "${path}" 2> /dev/null | cut -d ' ' -f 1)"
+		in_root dpkg-query -W -f '${Conffiles}\n' 2> /dev/null | awk -v f="${path}" -v m="${sum}" '$1 == f && $2 == m && $3 != "obsolete" { ok = 1 } END { exit !ok }' &&
+			in_root dpkg-query -W -f '${Conffiles}\n' 2> /dev/null | awk -v f="${path}" '$1 == f && $3 == "obsolete" { ok = 1 } END { exit !ok }' &&
+			skip=yes upgraded_conffiles+=("${path}")
+	fi
 	[[ "${skip}" == yes ]] || changed+=("${path} (${owner})")
 done < <(awk '{ print $NF }' "${work}/dpkg-verify.txt" | sort -u)
 if [[ -s "${work}/dpkg-verify.err" ]]; then
 	fail "files: dpkg --verify reported errors"
 	detail < "${work}/dpkg-verify.err"
 elif [[ ${#changed[@]} -eq 0 ]]; then
-	pass "files: dpkg --verify finds no changed Ubuntu package files beyond keep-modified.list"
+	pass "files: dpkg --verify finds no changed Ubuntu package files beyond keep-modified.list$([[ ${#upgraded_conffiles[@]} -eq 0 ]] || echo " (as shipped by their new package, an obsolete conffile of their old one: ${upgraded_conffiles[*]})")"
 else
 	fail "files: Ubuntu package files differ from the packages"
 	printf '%s\n' "${changed[@]}" | detail

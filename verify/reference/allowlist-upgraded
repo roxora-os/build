@@ -5,3 +5,8 @@
 
 # Ubuntu 24.04 to 26.04 (do-release-upgrade)
 systemd-timesyncd       24.04's time daemon; Ubuntu's release upgrade keeps it (ubuntu-minimal and roxora-release depend on "chrony | time-daemon"), a new 26.04 image has chrony
+gcc-14-base             24.04's GCC base package, marked manually installed in the 24.04 image (Armbian's package list), so the upgrade keeps it; on the ROCK 4D the GCC 14 of the DKMS toolchain still needs it
+network-manager-l10n    recommended by network-manager on 26.04; the release upgrade installs new recommended packages, the image build installs network-manager without them
+grub-common             UEFI image: needed by os-prober and grub2-common from the 24.04 image, which the upgrade keeps; a new 26.04 image has neither (as Ubuntu's 26.04 server image)
+gnome-terminal          desktops: 24.04's terminal; 26.04's is Ptyxis, which the upgrade installs too, and Ubuntu's upgrade keeps gnome-terminal
+gnome-terminal-data     data of gnome-terminal (above)

@@ -1,0 +1,6 @@
+# Package files an upgraded image (verify-image.sh --upgraded) may have
+# changed or missing, beyond userpatches/roxora/keep-modified.list. One path
+# per line; a reason after it.
+
+# Ubuntu 24.04 to 26.04 (do-release-upgrade)
+/etc/apparmor.d/disable    desktops: an empty directory of apparmor, removed when the upgrade purges an obsolete package with an AppArmor profile (evince): dh_apparmor's purge step removes it when empty
