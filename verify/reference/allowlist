@@ -102,10 +102,17 @@ m4                               dependency of bison
 make                             toolchain for the ROCK 4D Wi-Fi driver build
 zlib1g-dev                       kernel headers build dependency
 
-# Roxora's own tools.
-roxora-hwtool                    Roxora hardware tool, command line (userpatches/roxora/hwtool.conf)
-roxora-hwtool-gtk                Roxora hardware tool, GTK app, in the desktop images (userpatches/roxora/hwtool.conf)
-roxora-wallpapers                Roxora wallpapers for a GNOME desktop, built from roxora-os/design (userpatches/roxora/wallpapers/)
+# Roxora's own packages, from Roxora's apt repository
+# (userpatches/roxora/roxora-repo.conf); the release packages are built with
+# the image (userpatches/roxora/packages/).
+roxora-archive-keyring           key of Roxora's apt repository
+roxora-hwtool                    Roxora hardware tool, command line
+roxora-hwtool-gtk                Roxora hardware tool, GTK app, in the desktop images
+roxora-wallpapers                Roxora wallpapers for a GNOME desktop, built from roxora-os/design by roxora-os/apt
+roxora-release                   Roxora release package: apt sources and pins, cloud-init settings, font directories
+roxora-cli                       Roxora release package of the command line flavor
+roxora-desktop-gnome-minimal     Roxora release package of the gnome-minimal flavor
+roxora-desktop-gnome             Roxora release package of the gnome flavor
 
 # Ubuntu 26.04: in the 24.04 server image, not in the 26.04 one.
 initramfs-tools                  boot path: its hook makes the uInitrd U-Boot loads (26.04 Ubuntu uses dracut)

@@ -6,7 +6,7 @@
 #
 # Check a Roxora image without booting it.
 #
-#   sudo verify/verify-image.sh [--offline] [--flavor FLAVOR] <image.img | image.img.xz>
+#   sudo verify/verify-image.sh [--offline] [--flavor FLAVOR] [--upgraded] <image.img | image.img.xz>
 #
 # The image is attached read-only. Its root filesystem is mounted under an
 # overlay with a throwaway upper layer, so apt can run in a chroot without
@@ -17,6 +17,11 @@
 # --flavor   the flavor the image must be: cli, gnome-minimal or gnome. The
 #            check always reads the flavor from the image's packages; with
 #            this option it fails when the image is another one.
+# --upgraded the image is one of an earlier release, upgraded to this
+#            commit's release by verify/upgrade-test.sh as a user would. The
+#            checks are the same, except that the bootloader written to the
+#            disk may be older than the installed U-Boot package: an update of
+#            the package does not write it, on a board either.
 #
 # A desktop image also needs the snap command on the host (package snapd),
 # to validate the seeded snaps.
@@ -31,6 +36,7 @@ LISTS="${REPO}/userpatches/roxora"
 REF="${HERE}/reference"
 
 offline=no
+upgraded=no
 want_flavor=""
 image=""
 while [[ $# -gt 0 ]]; do
@@ -38,20 +44,21 @@ while [[ $# -gt 0 ]]; do
 	shift
 	case "${arg}" in
 		--offline) offline=yes ;;
+		--upgraded) upgraded=yes ;;
 		--flavor)
 			want_flavor="${1:-}"
 			shift || true
 			;;
 		--flavor=*) want_flavor="${arg#*=}" ;;
 		-h | --help)
-			sed -n '5,24s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+			sed -n '5,29s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 			exit 0
 			;;
 		*) image="${arg}" ;;
 	esac
 done
 [[ -n "${image}" && -f "${image}" ]] || {
-	echo "usage: $0 [--offline] [--flavor FLAVOR] <image.img | image.img.xz>" >&2
+	echo "usage: $0 [--offline] [--flavor FLAVOR] [--upgraded] <image.img | image.img.xz>" >&2
 	exit 2
 }
 [[ -z "${want_flavor}" || "${want_flavor}" =~ ^(cli|gnome-minimal|gnome)$ ]] || {
@@ -101,6 +108,11 @@ list() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$1"; }
 # shellcheck source=userpatches/roxora/hardware-repo.conf
 source "${LISTS}/hardware-repo.conf"
 expected_pin="$(sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${LISTS}/apt/roxora-hardware.pref.in")"
+# Roxora's apt repository and the versions of Roxora's packages.
+# shellcheck source=userpatches/roxora/roxora-repo.conf
+source "${LISTS}/roxora-repo.conf"
+# apt names its list files after the URI without the scheme, "/" as "_".
+roxora_lists="$(sed -e 's|^[a-z]*://||' -e 's|/*$||' -e 's|/|_|g' <<< "${ROXORA_REPO_URI}")"
 
 # Packages the hardware repository may provide: those of every record in the
 # pin file with priority 500 (the hardware layer, and charsiu).
@@ -235,6 +247,42 @@ else
 	fail "apt: ${hw_source} with ${HW_REPO_HOST} is missing"
 fi
 
+# Roxora's repository: its source, key and pin, as roxora-release and
+# roxora-archive-keyring ship them, and the hardware source list owned by
+# roxora-release too.
+rx_errors=()
+rx_check() { # <path in the image> <expected content> <owner>
+	if ! cmp -s <(printf '%s\n' "$2") "${R}$1"; then
+		rx_errors+=("$1 is missing or differs from userpatches/roxora/apt")
+	elif [[ "$(in_root dpkg-query -S "$1" 2> /dev/null | sed 's/: .*//')" != "$3" ]]; then
+		rx_errors+=("$1 does not belong to $3")
+	fi
+}
+rx_check /etc/apt/sources.list.d/roxora.sources \
+	"$(sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${codename}/g" "${LISTS}/apt/roxora.sources.in")" roxora-release
+rx_check /etc/apt/preferences.d/roxora.pref "$(sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${LISTS}/apt/roxora.pref.in")" roxora-release
+rx_check /etc/apt/preferences.d/roxora-hardware.pref "${expected_pin}" roxora-release
+[[ "${HW_REPO}" == armbian ]] &&
+	rx_check /etc/apt/sources.list.d/armbian.sources "$(sed -e "s/@SUITE@/${codename}/g" "${LISTS}/apt/armbian.sources.in")" roxora-release
+mkdir -p "${work}/gnupg"
+chmod 700 "${work}/gnupg"
+gpg --homedir "${work}/gnupg" --batch --dearmor < "${LISTS}/apt/roxora-archive-keyring.asc" > "${work}/roxora-archive-keyring.gpg" 2> /dev/null
+rx_key=/usr/share/keyrings/roxora-archive-keyring.gpg
+if ! cmp -s "${work}/roxora-archive-keyring.gpg" "${R}${rx_key}"; then
+	rx_errors+=("${rx_key} is not the key in userpatches/roxora/apt/roxora-archive-keyring.asc")
+elif [[ "$(in_root dpkg-query -S "${rx_key}" 2> /dev/null | sed 's/: .*//')" != roxora-archive-keyring ]]; then
+	rx_errors+=("${rx_key} does not belong to roxora-archive-keyring")
+fi
+mapfile -t rx_fprs < <(gpg --homedir "${work}/gnupg" --batch --with-colons --show-keys "${R}${rx_key}" 2> /dev/null | awk -F: '$1 == "pub" { w = 1; next } w && $1 == "fpr" { print $10; w = 0 }')
+[[ ${#rx_fprs[@]} -eq 1 && "${rx_fprs[0]}" == "${ROXORA_REPO_KEY_FINGERPRINT}" ]] ||
+	rx_errors+=("${rx_key} holds ${rx_fprs[*]:-no key}, not ${ROXORA_REPO_KEY_FINGERPRINT} alone")
+if [[ ${#rx_errors[@]} -eq 0 ]]; then
+	pass "apt: Roxora's repository ${ROXORA_REPO_URI} (${codename}) with Signed-By ${rx_key} (key ${ROXORA_REPO_KEY_FINGERPRINT}), its pin and the hardware repository's source and pin, all as roxora-release and roxora-archive-keyring ship them"
+else
+	fail "apt: ${#rx_errors[@]} problems with Roxora's repository"
+	printf '%s\n' "${rx_errors[@]}" | detail
+fi
+
 if [[ "${offline}" == no ]]; then
 	cp -L /etc/resolv.conf "${R}/tmp/resolv.conf"
 	rm -f "${R}/etc/resolv.conf"
@@ -294,6 +342,43 @@ else
 	fi
 fi
 
+# Every package Roxora's repository offers: only roxora-* packages may have
+# their candidate there (roxora.pref), whatever its index lists.
+mapfile -t roxora_pkgs < <(cat "${R}"/var/lib/apt/lists/"${roxora_lists}"_dists_"${codename}"_*_Packages 2> /dev/null | awk '/^Package:/ { print $2 }' | sort -u)
+if [[ ${#roxora_pkgs[@]} -eq 0 ]]; then
+	fail "apt: no package lists from Roxora's repository (${ROXORA_REPO_URI} ${codename}) in the image"
+else
+	# "<name> yes" when the candidate version is offered by Roxora's host.
+	in_root apt-cache policy "${roxora_pkgs[@]}" 2> /dev/null | awk -v host="${ROXORA_REPO_HOST}" '
+		function flush() { if (pkg != "") print pkg, (rx ? "yes" : "no") }
+		/^[^ ].*:$/ { flush(); pkg = substr($0, 1, length($0) - 1); cand = ""; invers = 0; rx = 0; next }
+		/^  Candidate:/ { cand = $2; next }
+		/^ \*\*\* / { invers = ($2 == cand); next }
+		/^     [^ ]/ { invers = ($1 == cand); next }
+		/^        / && invers && index($0, host) { rx = 1; next }
+		END { flush() }
+	' > "${work}/roxora-candidates.txt"
+	bad=()
+	while read -r p from; do
+		[[ "${from}" == yes && "${p}" != roxora-* ]] && bad+=("${p}")
+	done < "${work}/roxora-candidates.txt"
+	n_rx="$(awk '$2 == "yes"' "${work}/roxora-candidates.txt" | wc -l)"
+	if [[ ${#bad[@]} -eq 0 && "$(wc -l < "${work}/roxora-candidates.txt")" -eq ${#roxora_pkgs[@]} ]]; then
+		pass "apt: of ${#roxora_pkgs[@]} packages in Roxora's repository, the ${n_rx} with their candidate there are all roxora-* packages"
+	else
+		fail "apt: Roxora's repository is the candidate for packages that are not Roxora's, or apt-cache policy did not describe them all"
+		printf '%s\n' "${bad[@]}" | detail
+	fi
+fi
+
+# Is a package's installed version offered by Roxora's repository?
+# apt-cache policy output in $2.
+from_roxora() {
+	local inst
+	inst="$(awk '/Installed:/ { print $2 }' <<< "$2")"
+	awk -v v="${inst}" -v host="${ROXORA_REPO_HOST}" '$1 == v || ($1 == "***" && $2 == v) { f = 1; next } f && /^ +[0-9-]+ / { if (index($0, host)) ok = 1; next } f { f = 0 } END { exit !ok }' <<< "$2"
+}
+
 # Is the installed version of a package Ubuntu's (maintainer), and offered by
 # an Ubuntu archive? apt-cache policy output in $2.
 from_ubuntu() {
@@ -318,13 +403,16 @@ bad=()
 while read -r p origin; do
 	is_hw "${p}" || bad+=("${p} (${origin})")
 done < <(awk -v org="${HW_REPO_ORIGIN}:" '/^Inst / && index($0, "(") && index(substr($0, index($0, "(")), org) { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
+while read -r p origin; do
+	[[ "${p}" == roxora-* ]] || bad+=("${p} (${origin})")
+done < <(awk -v org="${ROXORA_REPO_ORIGIN}:" '/^Inst / && index($0, "(") && index(substr($0, index($0, "(")), org) { o = $0; sub(/^[^(]*\(/, "", o); print $2, o }' "${work}/upgrade.txt")
 if [[ "${upgrade_ok}" != yes ]]; then
 	fail "apt: apt-get -s full-upgrade failed in the chroot"
 	detail < "${work}/upgrade.txt"
 elif [[ ${#bad[@]} -eq 0 ]]; then
-	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages and none outside the hardware layer from ${HW_REPO_ORIGIN}"
+	pass "apt: full-upgrade would take $(grep -c '^Inst ' "${work}/upgrade.txt" || true) packages, none outside the hardware layer from ${HW_REPO_ORIGIN} and none but roxora-* from ${ROXORA_REPO_ORIGIN}"
 else
-	fail "apt: full-upgrade would install or upgrade distro-layer packages from ${HW_REPO_ORIGIN}"
+	fail "apt: full-upgrade would install or upgrade distro-layer packages from ${HW_REPO_ORIGIN}, or packages other than Roxora's from ${ROXORA_REPO_ORIGIN}"
 	printf '%s\n' "${bad[@]}" | detail
 fi
 
@@ -595,13 +683,23 @@ else
 		size="$(stat -c %s "$1")"
 		cmp -s -n "${size}" "$1" <(dd if="${loop}" bs=512 skip="$2" count=$(((size + 511) / 512)) status=none)
 	}
+	# On an upgraded image the bootloader is the old image's when the U-Boot
+	# package was updated: that is reported, not counted as a failure.
+	uboot_differs() {
+		if [[ "${upgraded}" == yes ]]; then
+			uwords_note=" (upgraded image: the bootloader on the disk is not the updated package's; a U-Boot update does not write it)"
+		else
+			boot_errors+=("$1")
+		fi
+	}
+	uwords_note=""
 	if [[ -n "${ubin}" ]]; then
-		same_at "${ubin}" 64 || boot_errors+=("bootloader at 32 KiB differs from ${ubin#"${R}"}")
-		uwords="${ubin#"${R}"}"
+		same_at "${ubin}" 64 || uboot_differs "bootloader at 32 KiB differs from ${ubin#"${R}"}"
+		uwords="${ubin#"${R}"}${uwords_note}"
 	elif [[ -n "${udir}" && -f "${udir}/idbloader.img" && -f "${udir}/u-boot.itb" ]]; then
-		same_at "${udir}/idbloader.img" 64 || boot_errors+=("idbloader at 32 KiB differs from ${udir#"${R}"}/idbloader.img")
-		same_at "${udir}/u-boot.itb" 16384 || boot_errors+=("U-Boot at 8 MiB differs from ${udir#"${R}"}/u-boot.itb")
-		uwords="${udir#"${R}"}/idbloader.img and u-boot.itb"
+		same_at "${udir}/idbloader.img" 64 || uboot_differs "idbloader at 32 KiB differs from ${udir#"${R}"}/idbloader.img"
+		same_at "${udir}/u-boot.itb" 16384 || uboot_differs "U-Boot at 8 MiB differs from ${udir#"${R}"}/u-boot.itb"
+		uwords="${udir#"${R}"}/idbloader.img and u-boot.itb${uwords_note}"
 	else
 		boot_errors+=("no u-boot-rockchip.bin, and no idbloader.img with u-boot.itb, in /usr/lib/linux-u-boot-*")
 		uwords="none"
@@ -690,44 +788,76 @@ else
 	printf '%s\n' "${cfg_errors[@]}" | detail
 fi
 
-# --- 7. Roxora's tools ---------------------------------------------------------
+# --- 7. Roxora's packages ------------------------------------------------------
 
-# shellcheck source=userpatches/roxora/hwtool.conf
-source "${LISTS}/hwtool.conf"
-hw_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-hwtool 2> /dev/null || true)"
-if [[ "${hw_inst}" == "ii  ${HWTOOL_VERSION}" ]] && in_root hwtool --version > /dev/null 2>&1; then
-	pass "tools: hwtool ${HWTOOL_VERSION} installed and runs"
+# The release packages: roxora-release and the flavor's package, at this
+# commit's release (roxora-repo.conf) for the image's Ubuntu release, and
+# /etc/roxora-release that says so.
+# shellcheck source=/dev/null
+ubuntu_version="$(. "${R}/etc/os-release" && echo "${VERSION_ID}")"
+rel_version="${ROXORA_RELEASE}+${ubuntu_version}"
+flavor_pkg=roxora-cli
+[[ "${flavor}" == cli ]] || flavor_pkg="roxora-desktop-${flavor}"
+rel_errors=()
+for p in roxora-release "${flavor_pkg}"; do
+	inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev}${Version}' "${p}" 2> /dev/null || true)"
+	[[ "${inst}" == "ii ${rel_version}" ]] || rel_errors+=("${p} ${rel_version} is not installed (dpkg: '${inst}')")
+done
+for p in roxora-cli roxora-desktop-gnome-minimal roxora-desktop-gnome; do
+	[[ "${p}" == "${flavor_pkg}" ]] && continue
+	is_installed "${p}" && rel_errors+=("${p} is installed on a ${flavor} image")
+done
+if [[ "$(readlink "${R}/etc/roxora-release" 2> /dev/null)" != ../usr/lib/roxora-release ]]; then
+	rel_errors+=("/etc/roxora-release is not the link to ../usr/lib/roxora-release")
 else
-	fail "tools: hwtool ${HWTOOL_VERSION} not installed or does not run (dpkg: '${hw_inst}')"
+	for kv in "ROXORA_VERSION=${ROXORA_RELEASE}" "ROXORA_FLAVOR=${flavor}" "ROXORA_UBUNTU_CODENAME=${codename}" "ROXORA_PACKAGE=${flavor_pkg}"; do
+		grep -qx "${kv}" "${R}/usr/lib/roxora-release" || rel_errors+=("/etc/roxora-release does not say ${kv}")
+	done
 fi
+if [[ ${#rel_errors[@]} -eq 0 ]]; then
+	pass "release: roxora-release and ${flavor_pkg} ${rel_version} installed; /etc/roxora-release says Roxora ${ROXORA_RELEASE}, flavor ${flavor}"
+else
+	fail "release: ${#rel_errors[@]} problems with the release packages"
+	printf '%s\n' "${rel_errors[@]}" | detail
+fi
+
+# Roxora's other packages, at the versions of roxora-repo.conf, from Roxora's
+# repository.
+# repo_pkg <package> <version>: installed at that version and offered there.
+tool_errors=()
+repo_pkg() {
+	local inst
+	inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev}${Version}' "$1" 2> /dev/null || true)"
+	if [[ "${inst}" != "ii $2" ]]; then
+		tool_errors+=("$1 $2 is not installed (dpkg: '${inst}')")
+	elif ! from_roxora "$1" "$(in_root apt-cache policy "$1")"; then
+		tool_errors+=("$1 $2 is not the version in Roxora's repository")
+	fi
+}
+repo_pkg roxora-archive-keyring "${KEYRING_VERSION}"
+repo_pkg roxora-hwtool "${HWTOOL_VERSION}"
+in_root hwtool --version > /dev/null 2>&1 || tool_errors+=("hwtool does not run")
 # The GTK app: in the desktop images, with its entry for the app grid, and
 # not in the command line image.
-gtk_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-hwtool-gtk 2> /dev/null || true)"
+gtk_words=""
 if [[ "${flavor}" == cli ]]; then
-	[[ -z "${gtk_inst}" ]] || fail "tools: roxora-hwtool-gtk is in a command line image (dpkg: '${gtk_inst}')"
-elif [[ "${gtk_inst}" == "ii  ${HWTOOL_VERSION}" && -x "${R}/usr/bin/hwtool-gtk" ]] &&
-	grep -qs '^Exec=hwtool-gtk' "${R}/usr/share/applications/io.github.roxora_os.HwTool.desktop"; then
-	pass "tools: hwtool GTK app ${HWTOOL_VERSION} installed, with its desktop entry"
+	is_installed roxora-hwtool-gtk && tool_errors+=("roxora-hwtool-gtk is in a command line image")
 else
-	fail "tools: hwtool GTK app ${HWTOOL_VERSION} not installed or without its desktop entry (dpkg: '${gtk_inst}')"
+	repo_pkg roxora-hwtool-gtk "${HWTOOL_VERSION}"
+	[[ -x "${R}/usr/bin/hwtool-gtk" ]] && grep -qs '^Exec=hwtool-gtk' "${R}/usr/share/applications/io.github.roxora_os.HwTool.desktop" ||
+		tool_errors+=("the hwtool GTK app has no program or desktop entry")
+	gtk_words=", its GTK app with its desktop entry"
 fi
-
-# shellcheck source=userpatches/roxora/wallpapers/wallpapers.conf
-source "${LISTS}/wallpapers/wallpapers.conf"
-wp_version="${WALLPAPERS_VERSION}+git${WALLPAPERS_DESIGN_COMMIT:0:7}"
-wp_inst="$(in_root dpkg-query -W -f '${db:Status-Abbrev} ${Version}' roxora-wallpapers 2> /dev/null || true)"
-wp_errors=()
-[[ "${wp_inst}" == "ii  ${wp_version}" ]] || wp_errors+=("roxora-wallpapers ${wp_version} not installed (dpkg: '${wp_inst}')")
-for f in roxora-facet-light.png roxora-facet-dark.png; do
-	[[ -s "${R}/usr/share/backgrounds/roxora/${f}" ]] || wp_errors+=("/usr/share/backgrounds/roxora/${f} missing")
+repo_pkg roxora-wallpapers "${WALLPAPERS_VERSION}"
+for f in /usr/share/backgrounds/roxora/roxora-facet-light.png /usr/share/backgrounds/roxora/roxora-facet-dark.png \
+	/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override; do
+	[[ -s "${R}${f}" ]] || tool_errors+=("${f} missing")
 done
-cmp -s "${LISTS}/wallpapers/90_roxora-wallpapers.gschema.override" "${R}/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override" ||
-	wp_errors+=("the GNOME default wallpaper override is missing or differs from userpatches/roxora/wallpapers")
-if ((${#wp_errors[@]} == 0)); then
-	pass "tools: roxora-wallpapers ${wp_version} installed, Facet the default for GNOME"
+if [[ ${#tool_errors[@]} -eq 0 ]]; then
+	pass "tools: from Roxora's repository: roxora-archive-keyring ${KEYRING_VERSION}, hwtool ${HWTOOL_VERSION} (runs)${gtk_words}, roxora-wallpapers ${WALLPAPERS_VERSION}"
 else
-	fail "tools: wallpapers"
-	printf '%s\n' "${wp_errors[@]}" | detail
+	fail "tools: ${#tool_errors[@]} problems with Roxora's packages"
+	printf '%s\n' "${tool_errors[@]}" | detail
 fi
 
 # --- 8. desktop ------------------------------------------------------------------
