@@ -7,7 +7,7 @@
 # Try Ubuntu's release upgrade (do-release-upgrade, 24.04 to 26.04) on a
 # Roxora image, in a chroot, and report what it leaves.
 #
-#   sudo verify/release-upgrade-test.sh [--allow-third-party] <image.img> <log directory>
+#   sudo verify/release-upgrade-test.sh [--allow-third-party] [--release-debs DIR] <image.img> <log directory>
 #
 # <image.img> is a 24.04 image with Roxora's repository, as
 # verify/upgrade-test.sh leaves it; it is changed in place. Its root file
@@ -15,7 +15,13 @@
 # non-interactive front end; --allow-third-party sets
 # RELEASE_UPGRADER_ALLOW_THIRD_PARTY=1, with which the upgrader moves the
 # sources it does not know (Armbian's, Roxora's) to the new release instead
-# of turning them off. The upgrader's logs and a report of the result (apt
+# of turning them off. Afterwards Roxora's and Armbian's source lists are
+# moved to the new release by hand where the upgrader turned them off
+# (removing "Enabled: no", changing the suite), and "apt full-upgrade" runs
+# with dpkg's questions unanswered. --release-debs DIR offers 26.04 release
+# packages not yet in Roxora's repository from a local repository for that
+# step. The SSH host keys the upgrade creates in a never-booted image are
+# removed at the end. The upgrader's logs and a report of the result (apt
 # sources, hardware and Roxora packages, boot files) go to <log directory>.
 #
 # This is an experiment, not a supported procedure: services do not run in
@@ -25,12 +31,17 @@
 set -euo pipefail
 
 allow=no
+release_debs=""
 args=()
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--allow-third-party)
 			allow=yes
 			shift
+			;;
+		--release-debs)
+			release_debs="$(cd "$2" && pwd)"
+			shift 2
 			;;
 		*)
 			args+=("$1")
@@ -130,15 +141,38 @@ declare -i status=0
 	echo "== ${env[*]} do-release-upgrade -f DistUpgradeViewNonInteractive"
 	in_chroot env "${env[@]}" do-release-upgrade -f DistUpgradeViewNonInteractive || status=$?
 	echo "== do-release-upgrade exited with ${status}"
-	echo "== after"
+	echo "== after do-release-upgrade"
 	report
+	for f in roxora armbian; do
+		echo "--- sha256 of ${f}.sources: $(sha256sum < "${mnt}/etc/apt/sources.list.d/${f}.sources" | cut -d ' ' -f 1)"
+	done
+	if ((status == 0)); then
+		to="$(in_chroot sh -c '. /etc/os-release && echo "${VERSION_CODENAME}"')"
+		echo "== Roxora's and Armbian's sources to ${to}, then apt full-upgrade"
+		sed -i -e '/^Enabled: no$/d' -e "s/^Suites: noble$/Suites: ${to}/" \
+			"${mnt}/etc/apt/sources.list.d/roxora.sources" "${mnt}/etc/apt/sources.list.d/armbian.sources"
+		if [[ -n "${release_debs}" ]]; then
+			mkdir -p "${mnt}/tmp/roxora-release-test"
+			cp "${release_debs}"/*.deb "${mnt}/tmp/roxora-release-test/"
+			(cd "${mnt}/tmp/roxora-release-test" && apt-ftparchive packages . > Packages && apt-ftparchive release . > Release)
+			echo 'deb [trusted=yes] file:/tmp/roxora-release-test ./' > "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.list"
+		fi
+		in_chroot sh -c 'apt-get update && apt-get -y full-upgrade' || status=$?
+		rm -rf "${mnt}/tmp/roxora-release-test" "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.list" \
+			"${mnt}"/var/lib/apt/lists/_tmp_roxora-release-test_*
+		in_chroot apt-get update -qq || true
+		echo "== apt full-upgrade exited with ${status}"
+		echo "== at the end"
+		report
+	fi
 } 2>&1 | tee "${logs}/report.txt"
 status=0
 grep -q '^== do-release-upgrade exited with 0$' "${logs}/report.txt" || status=1
+grep -q '^== apt full-upgrade exited with 0$' "${logs}/report.txt" || status=1
 cp -a "${mnt}/var/log/dist-upgrade" "${logs}/" 2> /dev/null || true
 cp -a "${mnt}/var/log/apt/term.log" "${logs}/apt-term.log" 2> /dev/null || true
 
-rm -f "${mnt}/usr/sbin/policy-rc.d" "${mnt}/etc/resolv.conf"
+rm -f "${mnt}/usr/sbin/policy-rc.d" "${mnt}/etc/resolv.conf" "${mnt}"/etc/ssh/ssh_host_*
 if [[ -e "${work}/resolv.conf.saved" || -L "${work}/resolv.conf.saved" ]]; then
 	cp -a "${work}/resolv.conf.saved" "${mnt}/etc/resolv.conf"
 fi

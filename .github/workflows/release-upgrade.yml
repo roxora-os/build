@@ -66,8 +66,9 @@ jobs:
         env:
           THIRD_PARTY: ${{ matrix.third_party }}
         run: |
-          args=()
-          [[ "${THIRD_PARTY}" == true ]] && args=(--allow-third-party)
+          userpatches/roxora/packages/build.sh --suite resolute --flavor cli --out release-debs-resolute
+          args=(--release-debs release-debs-resolute)
+          [[ "${THIRD_PARTY}" == true ]] && args+=(--allow-third-party)
           sudo verify/release-upgrade-test.sh "${args[@]}" upgraded.img logs
 
       - name: Verify the result as a 26.04 system

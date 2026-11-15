@@ -24,8 +24,33 @@ take_over() {
 	return 0
 }
 
+# Ubuntu's release upgrader (do-release-upgrade) edits the source lists it
+# does not know: it adds "Enabled: no", or, with
+# RELEASE_UPGRADER_ALLOW_THIRD_PARTY=1, changes the suite (and only the
+# suite: Armbian's components keep the old release's name). Where a source
+# list of the previous Ubuntu release's package is exactly such an edit,
+# write back what that package shipped, so that dpkg replaces it with this
+# release's version instead of asking about it. Any other change stays.
+restore_rewrite() {
+	path="$1"
+	shipped="$2"
+	shift 2
+	[ -f "$path" ] || return 0
+	sum="$(sha256sum "$path" | cut -d ' ' -f 1)"
+	for known in "$@"; do
+		if [ "$sum" = "$known" ]; then
+			printf '%s' "$shipped" > "$path"
+			return 0
+		fi
+	done
+	return 0
+}
+
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
 @TAKEOVER@
+fi
+if [ "$1" = upgrade ]; then
+@REWRITES@
 fi
 
 exit 0

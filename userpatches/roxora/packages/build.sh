@@ -65,9 +65,11 @@ if ! awk -v r="${suite}" '!/^[[:space:]]*(#|$)/ && $3 == r { found = 1 } END { e
 	echo "packages/build.sh: boards.conf has no image for ${suite}, nothing to build"
 	exit 0
 fi
+# The Ubuntu version, and the release a release upgrade comes from.
+previous=""
 case "${suite}" in
 	noble) ubuntu=24.04 ;;
-	resolute) ubuntu=26.04 ;;
+	resolute) ubuntu=26.04 previous=noble ;;
 	*) die "no Ubuntu version known for ${suite}" ;;
 esac
 [[ "${ROXORA_RELEASE}" =~ ^([0-9]{4})\.([0-9]{2})\.[0-9]+(~beta\.[0-9]+)?$ ]] ||
@@ -89,6 +91,31 @@ trap 'rm -rf "${work}"' EXIT
 takeover="$(awk '!/^[[:space:]]*(#|$)/ { s[$1] = s[$1] " " $2; if (!($1 in seen)) { seen[$1] = 1; order[++n] = $1 } }
 	END { for (i = 1; i <= n; i++) printf "\ttake_over %s%s\n", order[i], s[order[i]] }' "${HERE}/takeover.list")"
 takeover_paths="$(awk '!/^[[:space:]]*(#|$)/ { print $1 }' "${HERE}/takeover.list" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+
+# After a release upgrade from ${previous}: the source lists as that suite's
+# roxora-release shipped them, and their SHA-256 after the release
+# upgrader's known edits (see roxora-release.preinst).
+rewrites=""
+if [[ -n "${previous}" ]]; then
+	declare src shipped variants v
+	for src in roxora armbian; do
+		if [[ "${src}" == roxora ]]; then
+			shipped="$(sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${previous}/g" "${ROXORA_DIR}/apt/roxora.sources.in")"
+		else
+			shipped="$(sed -e "s/@SUITE@/${previous}/g" "${ROXORA_DIR}/apt/armbian.sources.in")"
+		fi
+		variants=""
+		for v in "${shipped}"$'\nEnabled: no' "${shipped//Suites: ${previous}/Suites: ${suite}}" \
+			"${shipped//Suites: ${previous}/Suites: ${suite}}"$'\nEnabled: no'; do
+			variants+=" $(printf '%s\n' "${v}" | sha256sum | cut -d ' ' -f 1)"
+		done
+		[[ "${shipped}" != *"'"* ]] || die "apt/${src}.sources.in has a quote"
+		rewrites+="$(printf "\trestore_rewrite /etc/apt/sources.list.d/%s.sources '%s\n'%s" "${src}" "${shipped}" "${variants}")"$'\n'
+	done
+fi
+# Packages Ubuntu's server image has for this release that the image build
+# installs again (ubuntu-defaults.list): a release upgrade brings them too.
+ubuntu_defaults="$(awk -v r="${suite}" '!/^[[:space:]]*(#|$)/ && $1 == r { for (i = 2; i <= NF; i++) printf ", %s", $i }' "${ROXORA_DIR}/ubuntu-defaults.list")"
 
 # write_copyright <package root> <name>
 write_copyright() {
@@ -129,7 +156,7 @@ sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/a
 sed -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/apt/armbian.sources.in" > "${pkg}/etc/apt/sources.list.d/armbian.sources"
 install -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${pkg}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
 write_copyright "${pkg}" roxora-release
-awk -v t="${takeover}" '$0 == "@TAKEOVER@" { print t; next } { print }' "${HERE}/roxora-release.preinst" > "${pkg}/DEBIAN/preinst"
+awk -v t="${takeover}" -v r="${rewrites:-$'\t:\n'}" '$0 == "@TAKEOVER@" { print t; next } $0 == "@REWRITES@" { printf "%s", r; next } { print }' "${HERE}/roxora-release.preinst" > "${pkg}/DEBIAN/preinst"
 for script in postinst postrm; do
 	sed -e "s|@TAKEOVER_PATHS@|${takeover_paths}|" "${HERE}/roxora-release.${script}" > "${pkg}/DEBIAN/${script}"
 done
@@ -140,7 +167,7 @@ cat > "${pkg}/DEBIAN/control" <<- CONTROL
 	Maintainer: Roxora Project <oss@gahingwoo.com>
 	Section: admin
 	Priority: optional
-	Depends: roxora-archive-keyring (>= ${KEYRING_VERSION}), roxora-hwtool (>= ${HWTOOL_VERSION}), roxora-wallpapers (>= ${WALLPAPERS_VERSION})
+	Depends: roxora-archive-keyring (>= ${KEYRING_VERSION}), roxora-hwtool (>= ${HWTOOL_VERSION}), roxora-wallpapers (>= ${WALLPAPERS_VERSION})${ubuntu_defaults}
 	Homepage: https://roxora-os.github.io
 	Description: Roxora ${ROXORA_RELEASE}: what every Roxora system shares
 	 The part of Roxora release ${ROXORA_RELEASE} for Ubuntu ${ubuntu} (${suite}) that
