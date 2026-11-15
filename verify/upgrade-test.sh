@@ -9,7 +9,8 @@
 #
 #   sudo verify/upgrade-test.sh [--flavor FLAVOR] [--release-debs DIR] <old image.img.xz | .img> <new image.img>
 #
-# Writes the old image, decompressed, to <new image.img> and changes that
+# Writes the old image, decompressed, to <new image.img>, grows its root file
+# system by 4 GiB (the first boot grows it into the card) and changes that
 # copy: it runs the commands of "Updating to a new Roxora release" in
 # docs/install.md (between the roxora-join markers) as they are written, then
 # the flavor's "apt install" line and "apt full-upgrade" from the same
@@ -106,9 +107,20 @@ if [[ "${old}" == *.xz ]]; then
 else
 	cp --sparse=always "${old}" "${new}"
 fi
+# The first boot grows the root file system into the card; an image as
+# published has little free space. Give the copy 4 GiB and grow the root
+# partition (the last one) and its file system into it, as the first boot
+# would.
+truncate -s +4G "${new}"
+ptdump="$(sfdisk -d "${new}")"
+[[ "$(awk '/^label:/ { print $2 }' <<< "${ptdump}")" == gpt ]] && sfdisk -q --relocate gpt-bak-std "${new}"
+rootnum="$(awk '/ : start=/ { sub(/ :.*/, ""); sub(/.*[^0-9]/, ""); n = $0 } END { print n }' <<< "${ptdump}")"
+echo ", +" | sfdisk -q --no-reread -N "${rootnum}" "${new}"
 loop="$(losetup -f --show -P "${new}")"
 udevadm settle 2> /dev/null || true
-rootpart="$(find /dev -maxdepth 1 -name "$(basename "${loop}")p*" | sort -V | tail -1)"
+rootpart="${loop}p${rootnum}"
+e2fsck -fp "${rootpart}" > /dev/null
+resize2fs "${rootpart}" 2>&1 | tail -1
 mkdir -p "${mnt}"
 mount "${rootpart}" "${mnt}"
 esp_num="$(sfdisk -d "${new}" 2> /dev/null | awk 'tolower($0) ~ /type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b/ { sub(/ :.*/, ""); sub(/.*[^0-9]/, ""); print; exit }')"
