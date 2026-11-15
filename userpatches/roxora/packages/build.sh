@@ -115,8 +115,12 @@ if [[ -n "${previous}" ]]; then
 	done
 fi
 # Packages Ubuntu's server image has for this release that the image build
-# installs again (ubuntu-defaults.list): a release upgrade brings them too.
-ubuntu_defaults="$(awk -v r="${suite}" '!/^[[:space:]]*(#|$)/ && $1 == r { for (i = 2; i <= NF; i++) printf ", %s", $i }' "${ROXORA_DIR}/ubuntu-defaults.list")"
+# installs again (ubuntu-defaults.list). chrony as Ubuntu's ubuntu-minimal
+# depends on it, "chrony | time-daemon": a new image has chrony, and a
+# system upgraded from 24.04 keeps systemd-timesyncd, as an upgraded Ubuntu
+# server does. A plain dependency on chrony would have to remove it, and
+# apt and the release upgrader keep the release packages back instead.
+ubuntu_defaults="$(awk -v r="${suite}" '!/^[[:space:]]*(#|$)/ && $1 == r { for (i = 2; i <= NF; i++) printf ", %s", ($i == "chrony" ? "chrony | time-daemon" : $i) }' "${ROXORA_DIR}/ubuntu-defaults.list")"
 
 # write_copyright <package root> <name>
 write_copyright() {

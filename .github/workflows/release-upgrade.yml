@@ -96,12 +96,13 @@ jobs:
           df -h /
 
       - name: Verify the result as a 26.04 system
+        if: ${{ !cancelled() }}
         run: |
           set -o pipefail
           sudo verify/verify-image.sh --upgraded --flavor "${FLAVOR}" upgraded.img | sudo tee logs/verify.txt
 
       - name: Boot in QEMU
-        if: ${{ matrix.board == 'generic-rk3576-uefi' }}
+        if: ${{ !cancelled() && matrix.board == 'generic-rk3576-uefi' }}
         run: |
           set -o pipefail
           verify/qemu-boot.sh upgraded.img logs/qemu-serial.log | sudo tee logs/qemu.txt
