@@ -261,47 +261,64 @@ brings it on upgraded systems. The upgrade test (see
 
 ### Ubuntu release upgrades
 
-Not supported yet. `.github/workflows/release-upgrade.yml`
-([`release-upgrade-test.sh`](../verify/release-upgrade-test.sh)) tries one on
-the ROCK 4D's 24.04 command line image of the previous release, updated to
-the commit's release first, in a chroot. What it showed (November 2026,
-upgrader 26.04.27, to 26.04.1):
+From 24.04 to 26.04 with Ubuntu's own release upgrader, as
+[install.md](install.md#from-ubuntu-2404-to-2604) says: `apt full-upgrade`,
+then `do-release-upgrade`, nothing by hand. Not supported yet: it passes in
+CI, and has not been run on a board (B9 of
+[hardware-test.md](hardware-test.md)). What makes it work:
 
-- `ubuntu-release-upgrader-core` is not in Roxora's command line images
-  (Ubuntu's server image has it); `do-release-upgrade` needs it installed
-  first.
-- The upgrader refuses a system without the unified cgroup v2 hierarchy.
-  Ubuntu 24.04 boots with it by default; whether Armbian's boot script
-  keeps that on the boards has not been checked.
-- It completes, keeps Armbian's kernel, device tree, U-Boot, firmware and
-  the BSP package (none is removed as obsolete), and keeps initramfs-tools,
-  whose hook makes the `uInitrd` the boot script loads (26.04 otherwise
-  uses dracut). `ubuntu.sources` moves to `archive.ubuntu.com` and
-  `security.ubuntu.com`, where 26.04 has arm64.
-- It turns Roxora's and Armbian's sources off (`Enabled: no`), so neither
-  the hardware packages nor the release packages follow. With
-  `RELEASE_UPGRADER_ALLOW_THIRD_PARTY=1` it moves them to `resolute`
-  instead, but only the suite: Armbian's components stay `noble-utils` and
-  `noble-desktop` (apt warns about them; the hardware packages are in
-  `main`). That setting does the same to every other third-party source on
-  the system.
-- The 26.04 release packages put that right where they can. Their preinst
-  recognises exactly the upgrader's edits of the 24.04 `roxora.sources`
-  and `armbian.sources` (by SHA-256), writes back what the 24.04 package
-  shipped, and dpkg then installs the 26.04 files without asking. They
-  also depend on chrony, which 26.04 has in place of systemd-timesyncd.
-  But `apt full-upgrade` keeps them back, because that replacement removes
-  a package: `sudo apt install roxora-cli` (the flavor package) is needed.
-- After that the result passed `verify-image.sh --upgraded` as a 26.04
-  system except for what the upgrade leaves that a new 26.04 image does
-  not have: `gcc-14-base` and `network-manager-l10n`, and
-  `/etc/cloud/cloud.cfg`, into which cloud-init's package writes its
-  datasource list from debconf on upgrade.
+- `roxora-release` depends on `ubuntu-release-upgrader-core`, which
+  Ubuntu's server images have and Roxora's command line images lacked.
+- The upgrader turns off every apt source it does not know. It reads
+  `/etc/update-manager/release-upgrades.d/*.cfg`, and a
+  `[ThirdPartyMirrors]` section there names archives it moves to the new
+  release like Ubuntu's own (`isThirdPartyMirror` in its
+  `DistUpgradeController.py`). `roxora-release` ships `roxora.cfg` there
+  ([`release-upgrades.cfg.in`](../userpatches/roxora/apt/release-upgrades.cfg.in))
+  with Roxora's repository and the hardware repository, and nothing else:
+  other third-party sources are turned off as Ubuntu does.
+- The upgrader moves only the suite: Armbian's components keep the names
+  `noble-utils` and `noble-desktop`. The 26.04 `roxora-release`, which the
+  upgrader installs from Roxora's repository during the upgrade, recognises
+  that edit of the 24.04 package's `armbian.sources` (and of `roxora.sources`,
+  and the `Enabled: no` the upgrader writes without the configuration) by
+  SHA-256, writes back what the 24.04 package shipped, and dpkg replaces it
+  with the 26.04 file (`resolute-utils`, `resolute-desktop`) without asking.
+- 26.04 has chrony where 24.04 has systemd-timesyncd. `roxora-release`
+  26.04 depends on `chrony | time-daemon`, as Ubuntu's `ubuntu-minimal`
+  does: a new image has chrony, an upgraded system keeps timesyncd, as an
+  upgraded Ubuntu server. A plain dependency on chrony made the upgrader and
+  apt keep the release packages back.
+- 26.04 requires the unified cgroup v2 hierarchy; the upgrader refuses a
+  system without it. systemd mounts it unless the kernel command line turns
+  it off, and nothing in Roxora's or Armbian's boot files does
+  (`verify-image.sh` checks `boot.cmd`, `armbianEnv.txt` and GRUB's
+  settings, and that the kernel has cgroups). On a board this is B2 of the
+  hardware test.
+- The hardware layer stays: the upgrader removes none of Armbian's packages
+  or the BSP package as obsolete, and initramfs-tools stays, whose hook
+  makes the `uInitrd` the boot script loads (26.04 otherwise uses dracut).
 
-Open before it can be supported: booting a board after the upgrade (the
-chroot runs no services and no new kernel), the release packages for
-26.04 being published (from 2026.11.5 on), the leftovers above, and the
-desktop flavors (snaps; not tried).
+`.github/workflows/release-upgrade.yml`
+([`release-upgrade-test.sh`](../verify/release-upgrade-test.sh)) runs the
+commands of install.md as written on the previous release's 24.04 ROCK 4D
+images (command line, GNOME minimal, GNOME) and RK3576 UEFI command line
+image, each first updated as in "Updating to a new Roxora release", in a
+chroot, with the upgrader's non-interactive front end. Release packages not
+yet published come from a local repository that the test adds to the
+upgrader's `[ThirdPartyMirrors]`. Each result passes
+`verify-image.sh --upgraded` as a 26.04 system, a second
+`apt full-upgrade` has nothing to do, and the UEFI image then boots in QEMU
+to the kernel. What an upgraded system has that a new 26.04 image does not,
+and why, is in
+[`allowlist-upgraded`](../verify/reference/allowlist-upgraded) and
+[`keep-modified-upgraded`](../verify/reference/keep-modified-upgraded).
+
+What the chroot cannot show: services do not run, so the upgrader skips its
+snap steps (on a running desktop it moves the snaps to their 26.04 channels
+through snapd, as on Ubuntu; in a desktop image that has not booted the
+24.04 seed stays and snapd installs it at the first boot), and nothing
+reboots into 26.04 there.
 
 ## Boot
 

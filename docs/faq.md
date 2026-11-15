@@ -171,12 +171,27 @@ repository added once first. Both are in
 [Updating to a new Roxora release](install.md#updating-to-a-new-roxora-release).
 A new bootloader is not part of it.
 
+## apt update says Roxora's Release file is expired
+
+    E: Release file for https://roxora-os.github.io/apt/dists/noble/InRelease is expired (invalid since ...)
+
+Roxora's repository is signed for 10 days at a time and signed again by its
+workflow every few hours, so this means publishing has stopped. Ubuntu's
+and Armbian's updates still install; Roxora's do not, and `apt update`
+exits with an error. Report it (see below); once the repository is
+published again, the next `apt update` works with nothing to change on the
+board. To update the rest meanwhile:
+`sudo apt -o Acquire::Check-Valid-Until=false update`. The expiry is what
+keeps an old copy of the repository from being passed off as current, so
+do not make that setting permanent.
+
 ## Can I upgrade from Ubuntu 24.04 to 26.04?
 
-Not yet: `do-release-upgrade` is not supported on Roxora. Write the 26.04
-image of your board instead, and copy your data over. It has been tried in
-CI without a board; [architecture.md](architecture.md#ubuntu-release-upgrades)
-says what works and what is missing.
+Not supported yet. `sudo do-release-upgrade` works on Roxora from
+2026.11.5 on in CI, with Roxora's and Armbian's sources moved by the
+upgrader itself, but it has not been run on a board. The steps are in
+[install.md](install.md#from-ubuntu-2404-to-2604); writing the 26.04 image
+is the safe way until a board has passed them.
 
 ## Can I update the kernel and go back?
 

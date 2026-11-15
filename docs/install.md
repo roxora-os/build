@@ -312,11 +312,10 @@ From then on that command brings each new release.
 
 ### From Ubuntu 24.04 to 26.04
 
-Upgrading the Ubuntu release of an installed system (`do-release-upgrade`)
-is not supported yet: write the 26.04 image instead, and copy your data
-over. The procedure below is what CI tests, on images in a chroot; nobody
-has booted a board after it yet. What the tests show is in
-[architecture.md](architecture.md#ubuntu-release-upgrades).
+Upgrading the Ubuntu release of an installed system is not supported yet:
+the procedure below passes in CI, on images in a chroot, but nobody has
+booted a board after it. Until then, writing the 26.04 image is the safe
+way. If you try it, have a backup of your data.
 
 <!-- roxora-release-upgrade:begin -->
 
@@ -325,11 +324,16 @@ has booted a board after it yet. What the tests show is in
 
 <!-- roxora-release-upgrade:end -->
 
-The system needs Roxora's repository and its release package first (from
-2026.11.5 on, or added as above). The upgrader then moves Roxora's and
-Armbian's sources to 26.04 with Ubuntu's (`roxora-release` tells it to), and
-takes the 26.04 release packages, which put the rest in order. Reboot when
-it asks.
+The system needs Roxora's repository and its release package first (any
+image from 2026.11.5 on, or one added to as above). The upgrader then
+moves Roxora's and Armbian's sources to 26.04 with Ubuntu's own
+(`roxora-release` names them in
+`/etc/update-manager/release-upgrades.d/roxora.cfg`), and installs the
+26.04 release packages, which put the rest in order. Other third-party
+sources (PPAs, for example) are turned off, as on Ubuntu. Accept what the
+upgrader proposes, and reboot when it asks. Afterwards `cat /etc/roxora-release`
+says `ROXORA_UBUNTU_CODENAME=resolute`. What differs from a new 26.04 image
+is in [architecture.md](architecture.md#ubuntu-release-upgrades).
 
 ## Problems
 
