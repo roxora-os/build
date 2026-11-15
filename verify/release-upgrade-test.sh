@@ -179,12 +179,22 @@ declare -i status=0
 	echo "== a second update and full-upgrade"
 	in_chroot sh -c 'apt-get update -qq && apt-get -s -o Debug::pkgProblemResolver=1 full-upgrade' 2>&1 | grep -v '^Inst\|^Conf' | tail -30
 	# The configuration files the upgrade left changed, against the packages.
-	echo "== dpkg --verify (changed configuration files):"
-	in_chroot dpkg --verify 2>&1 | grep ' c /' || true
-	if in_chroot test -f /etc/cloud/cloud.cfg; then
-		echo "== /etc/cloud/cloud.cfg against cloud-init-base's"
-		in_chroot sh -c 'cd /tmp && apt-get download -qq cloud-init-base && dpkg-deb --fsys-tarfile cloud-init-base_*.deb | tar -xO ./etc/cloud/cloud.cfg > /tmp/cloud.cfg.dist && diff -u /tmp/cloud.cfg.dist /etc/cloud/cloud.cfg; rm -f /tmp/cloud-init-base_*.deb /tmp/cloud.cfg.dist' || true
-	fi
+	echo "== dpkg --verify:"
+	in_chroot dpkg --verify 2>&1 || true
+	in_chroot ls -la /etc/apparmor.d/disable 2>&1 || true
+	echo "== what keeps the packages a new 26.04 image does not have"
+	for p in gcc-14-base network-manager-l10n grub-common gnome-terminal gnome-terminal-data systemd-timesyncd; do
+		in_chroot dpkg-query -W "${p}" > /dev/null 2>&1 || continue
+		echo "--- ${p}: $(in_chroot apt-mark showauto "${p}" | grep -q . && echo automatic || echo manual), installed reverse dependencies:"
+		in_chroot apt-cache rdepends --installed --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances "${p}" 2>&1 | tail -n +3 | head -10
+	done
+	# A changed configuration file of a package the upgrade installed: is
+	# its content the package's (only dpkg's record of it is old), or not?
+	in_chroot dpkg --verify 2>&1 | awk '$2 == "c" { print $3 }' | while read -r f; do
+		pkg="$(in_chroot dpkg-query -S "${f}" 2> /dev/null | head -1 | sed 's/: .*//')"
+		echo "== ${f} (${pkg}): md5 on disk $(in_chroot md5sum "${f}" | cut -d ' ' -f 1), in dpkg's database $(in_chroot dpkg-query -W -f '${Conffiles}\n' "${pkg}" | awk -v f="${f}" '$1 == f { print $2 }')"
+		in_chroot sh -c "cd /tmp && apt-get download -qq ${pkg} && mkdir -p /tmp/x && dpkg-deb -x ${pkg}_*.deb /tmp/x && md5sum /tmp/x${f} && diff -u /tmp/x${f} ${f} && echo 'same as in the package ${pkg}'; rm -rf /tmp/x /tmp/${pkg}_*.deb" 2>&1 || true
+	done
 } 2>&1 | tee "${logs}/report.txt"
 
 grep -q '^== the commands exited with 0$' "${logs}/report.txt" || status=1

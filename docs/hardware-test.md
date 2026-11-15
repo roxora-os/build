@@ -114,6 +114,8 @@ Pass:
       sudo journalctl -b | grep -A1 'SSH HOST KEY FINGERPRINTS'   # keys made on this boot
       sudo passwd -S root               # "root L ..." (locked)
       systemctl --failed                # 0 loaded units listed
+      stat -fc %T /sys/fs/cgroup        # cgroup2fs (Ubuntu 26.04 needs it)
+      cat /etc/roxora-release           # the release and flavor of the image
       journalctl -b -p err --no-pager   # note every line in the report
 
   Without a battery on the board's clock, the time starts from the image
@@ -237,6 +239,31 @@ Pass: `/dev/accel/accel0` exists, apt installs charsiu without installing or
 upgrading anything else from `apt.armbian.com`, and the model answers. Note
 the tokens per second charsiu prints. On the CM5-IO also record whether
 `/dev/accel/accel0` exists at all.
+
+### B9. Release upgrade (24.04 images only)
+
+On the 24.04 image after B5, with a second card or a backup: the procedure
+of [install.md](install.md#from-ubuntu-2404-to-2604).
+
+    sudo apt update && sudo apt full-upgrade
+    sudo do-release-upgrade            # answer as it asks; reboot at the end
+
+After the reboot:
+
+    cat /etc/os-release                 # VERSION_ID="26.04"
+    cat /etc/roxora-release             # ROXORA_UBUNTU_CODENAME=resolute
+    dpkg-query -W roxora-release        # ...+26.04
+    cat /etc/apt/sources.list.d/roxora.sources /etc/apt/sources.list.d/armbian.sources
+                                        # Suites: resolute; resolute-utils resolute-desktop
+    sudo apt update && apt list --upgradable   # no warnings, nothing listed
+    uname -r; ls -l /boot/uInitrd       # the kernel booted, uInitrd of today
+    stat -fc %T /sys/fs/cgroup          # cgroup2fs
+    systemctl --failed                  # 0 loaded units listed
+
+On a desktop image also: the login screen and the desktop start, and
+`snap list` shows Firefox and the App Center on their `ubuntu-26.04`
+channels. Pass: all of the above. Note every question the upgrader asked
+and what was answered.
 
 ## Part C: Roxora Imager
 
