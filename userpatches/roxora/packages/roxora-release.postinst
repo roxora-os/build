@@ -1,0 +1,20 @@
+#!/bin/sh
+# postinst of roxora-release (userpatches/roxora/packages/ in
+# https://github.com/roxora-os/build).
+set -e
+
+if [ "$1" = configure ]; then
+	# The files preinst moved aside: this package's versions are in place.
+	for path in @TAKEOVER_PATHS@; do
+		rm -f "$path.roxora-takeover"
+	done
+
+	# The system font directories. snapd gives a snap the host's fonts only
+	# through the directories that exist when it sets the snap up, so they
+	# exist before any font package or snap is installed. /usr/share/fonts
+	# belongs to this package; /usr/local is the administrator's, so the
+	# directory there is only created.
+	install -d -m 0755 /usr/local/share/fonts
+fi
+
+exit 0

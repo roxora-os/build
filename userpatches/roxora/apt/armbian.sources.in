@@ -1,0 +1,5 @@
+Types: deb
+URIs: http://apt.armbian.com
+Suites: @SUITE@
+Components: main @SUITE@-utils @SUITE@-desktop
+Signed-By: /usr/share/keyrings/armbian-archive-keyring.gpg

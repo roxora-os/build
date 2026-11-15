@@ -1,0 +1,15 @@
+# Roxora's configuration files as images made before the release packages
+# wrote them, outside any package. roxora-release moves such a file aside
+# when it is unchanged (its SHA-256 is listed here), so that dpkg installs
+# the package's version without asking; an edited file stays and dpkg asks
+# about it. Files that the images wrote exactly as the package ships them
+# need no entry: dpkg takes those over silently.
+#
+# <path> <SHA-256> <releases> [obsolete]
+# "obsolete": a file the package does not ship; it is removed once the
+# package is configured.
+/etc/apt/preferences.d/roxora-hardware.pref a4bfd63f0bcd11b34ecf222c0e0d70085611244d68095c101155c7779fdf73f4 2026.11.1
+/etc/apt/preferences.d/roxora-hardware.pref 239c86f259febba70ebe2c72068ab46c242f2fb9cb01d779dc028d4794cb1223 2026.11.2-2026.11.4
+/etc/apt/preferences.d/roxora-armbian.pref 399bcc67220cae64fcd0ec4bcbb62226c2cd8a29b75164682ea95cde5e3307de 2026.11.0 obsolete
+/etc/cloud/cloud.cfg.d/99-roxora.cfg 9cc41be980ccff2d421f66ab2f34c8d6b1b1150a23338568279600b0ee37ebac 2026.11.0-2026.11.1
+/etc/cloud/cloud.cfg.d/99-roxora.cfg 6c6c2d7d215f9ce08a5588d1c00023bc00df69d388ab824493464736d31d19e0 2026.11.2-2026.11.4

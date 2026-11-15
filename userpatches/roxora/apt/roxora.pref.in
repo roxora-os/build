@@ -1,0 +1,15 @@
+# Installed by roxora-release.
+#
+# Roxora's apt repository publishes Roxora's own packages, all named
+# roxora-*. apt takes those from it, and nothing else whatever its index
+# lists. The records match the host the repository is served from
+# (@HOST@).
+# See https://github.com/roxora-os/build/blob/main/docs/architecture.md
+
+Package: roxora-*
+Pin: origin "@HOST@"
+Pin-Priority: 500
+
+Package: *
+Pin: origin "@HOST@"
+Pin-Priority: -1

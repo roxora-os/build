@@ -1,0 +1,5 @@
+Types: deb
+URIs: @URI@
+Suites: @SUITE@
+Components: main
+Signed-By: /usr/share/keyrings/roxora-archive-keyring.gpg

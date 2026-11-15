@@ -1,0 +1,21 @@
+#!/bin/sh
+# postinst of the desktop flavor packages (userpatches/roxora/packages/ in
+# https://github.com/roxora-os/build).
+set -e
+
+# On the first installation: NetworkManager runs every device of a desktop,
+# through the netplan file of ubuntu-settings, as on Roxora's desktop images.
+# There systemd-networkd is not enabled: netplan starts it when a
+# configuration asks for it, and enabled, its wait-online service holds
+# every boot for two minutes waiting for links it does not manage. Only when
+# ubuntu-settings makes NetworkManager the renderer; nothing is stopped, the
+# change takes effect at the next boot. Later upgrades leave the setting as
+# it is.
+if [ "$1" = configure ] && [ -z "$2" ]; then
+	if grep -qs '^[[:space:]]*renderer:[[:space:]]*NetworkManager' /usr/lib/netplan/00-network-manager-all.yaml &&
+		command -v systemctl > /dev/null; then
+		systemctl --no-reload disable systemd-networkd.service systemd-networkd-wait-online.service > /dev/null 2>&1 || true
+	fi
+fi
+
+exit 0

@@ -1,0 +1,15 @@
+#!/bin/sh
+# postrm of roxora-release (userpatches/roxora/packages/ in
+# https://github.com/roxora-os/build).
+set -e
+
+if [ "$1" = abort-install ] || [ "$1" = abort-upgrade ]; then
+	# Put back what preinst moved aside.
+	for path in @TAKEOVER_PATHS@; do
+		if [ -e "$path.roxora-takeover" ] && [ ! -e "$path" ]; then
+			mv -f "$path.roxora-takeover" "$path"
+		fi
+	done
+fi
+
+exit 0
