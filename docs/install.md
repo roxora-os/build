@@ -314,9 +314,22 @@ From then on that command brings each new release.
 
 Upgrading the Ubuntu release of an installed system (`do-release-upgrade`)
 is not supported yet: write the 26.04 image instead, and copy your data
-over. The upgrade has been tried only in CI, on an image in a chroot, and
-nobody has booted a board after it; what that showed is in
+over. The procedure below is what CI tests, on images in a chroot; nobody
+has booted a board after it yet. What the tests show is in
 [architecture.md](architecture.md#ubuntu-release-upgrades).
+
+<!-- roxora-release-upgrade:begin -->
+
+    sudo apt update && sudo apt full-upgrade
+    sudo do-release-upgrade
+
+<!-- roxora-release-upgrade:end -->
+
+The system needs Roxora's repository and its release package first (from
+2026.11.5 on, or added as above). The upgrader then moves Roxora's and
+Armbian's sources to 26.04 with Ubuntu's (`roxora-release` tells it to), and
+takes the 26.04 release packages, which put the rest in order. Reboot when
+it asks.
 
 ## Problems
 

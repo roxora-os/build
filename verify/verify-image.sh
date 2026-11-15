@@ -262,6 +262,8 @@ rx_check /etc/apt/sources.list.d/roxora.sources \
 	"$(sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${codename}/g" "${LISTS}/apt/roxora.sources.in")" roxora-release
 rx_check /etc/apt/preferences.d/roxora.pref "$(sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${LISTS}/apt/roxora.pref.in")" roxora-release
 rx_check /etc/apt/preferences.d/roxora-hardware.pref "${expected_pin}" roxora-release
+rx_check /etc/update-manager/release-upgrades.d/roxora.cfg \
+	"$(sed -e "s|@ROXORA_URI@|${ROXORA_REPO_URI}|g" -e "s|@HW_URI@|$(sed -n 's/^URIs: //p' "${LISTS}/apt/armbian.sources.in")|g" "${LISTS}/apt/release-upgrades.cfg.in")" roxora-release
 [[ "${HW_REPO}" == armbian ]] &&
 	rx_check /etc/apt/sources.list.d/armbian.sources "$(sed -e "s/@SUITE@/${codename}/g" "${LISTS}/apt/armbian.sources.in")" roxora-release
 mkdir -p "${work}/gnupg"
@@ -277,7 +279,7 @@ mapfile -t rx_fprs < <(gpg --homedir "${work}/gnupg" --batch --with-colons --sho
 [[ ${#rx_fprs[@]} -eq 1 && "${rx_fprs[0]}" == "${ROXORA_REPO_KEY_FINGERPRINT}" ]] ||
 	rx_errors+=("${rx_key} holds ${rx_fprs[*]:-no key}, not ${ROXORA_REPO_KEY_FINGERPRINT} alone")
 if [[ ${#rx_errors[@]} -eq 0 ]]; then
-	pass "apt: Roxora's repository ${ROXORA_REPO_URI} (${codename}) with Signed-By ${rx_key} (key ${ROXORA_REPO_KEY_FINGERPRINT}), its pin and the hardware repository's source and pin, all as roxora-release and roxora-archive-keyring ship them"
+	pass "apt: Roxora's repository ${ROXORA_REPO_URI} (${codename}) with Signed-By ${rx_key} (key ${ROXORA_REPO_KEY_FINGERPRINT}), its pin, the hardware repository's source and pin, and the release upgrader's setting for both, all as roxora-release and roxora-archive-keyring ship them"
 else
 	fail "apt: ${#rx_errors[@]} problems with Roxora's repository"
 	printf '%s\n' "${rx_errors[@]}" | detail
@@ -710,6 +712,26 @@ else
 		fail "boot: ${#boot_errors[@]} problems"
 		printf '%s\n' "${boot_errors[@]}" | detail
 	fi
+fi
+
+# The unified cgroup v2 hierarchy, which Ubuntu 26.04 requires (its release
+# upgrader refuses a system without it): systemd mounts it by default, so
+# nothing on the kernel command line may turn it off, and the kernel must
+# have cgroups.
+cg_errors=()
+for f in /boot/boot.cmd /boot/armbianEnv.txt /etc/default/grub /etc/default/grub.d/*.cfg /boot/grub/grub.cfg; do
+	for g in "${R}"${f}; do
+		[[ -f "${g}" ]] || continue
+		grep -Eq 'systemd\.unified_cgroup_hierarchy=(0|false|no|off)|systemd\.legacy_systemd_cgroup_controller' "${g}" &&
+			cg_errors+=("${g#"${R}"} turns the unified cgroup hierarchy off")
+	done
+done
+grep -q '^CONFIG_CGROUPS=y' "${R}/boot/config-${kver}" 2> /dev/null || cg_errors+=("kernel ${kver} has no CONFIG_CGROUPS")
+if [[ ${#cg_errors[@]} -eq 0 ]]; then
+	pass "boot: kernel ${kver} has cgroups and nothing on its command line turns systemd's unified cgroup v2 hierarchy off"
+else
+	fail "boot: ${#cg_errors[@]} problems with cgroup v2"
+	printf '%s\n' "${cg_errors[@]}" | detail
 fi
 
 # --- 5. first boot ---------------------------------------------------------

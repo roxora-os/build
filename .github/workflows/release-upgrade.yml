@@ -1,21 +1,29 @@
-# Tries Ubuntu's release upgrade (24.04 to 26.04, do-release-upgrade) on a
-# Roxora command line image in a chroot (verify/release-upgrade-test.sh) and
-# keeps the logs. An experiment: Roxora does not support release upgrades
-# yet (docs/install.md), and this workflow is how to find out what that
-# needs. The image is a published 24.04 image, first updated to this
-# commit's release by verify/upgrade-test.sh.
+# Ubuntu release upgrade, 24.04 to 26.04: published 24.04 images of an
+# earlier release are first updated to this commit's release
+# (verify/upgrade-test.sh), then upgraded with do-release-upgrade as
+# docs/install.md says (verify/release-upgrade-test.sh), then checked with
+# verify-image.sh --upgraded against the 26.04 expectations. The UEFI image
+# is also booted in QEMU afterwards. All in a chroot or QEMU, not on a board.
 name: Release upgrade
 
 on:
   workflow_dispatch:
     inputs:
       from:
-        description: Release tag of the 24.04 image
+        description: Release tag of the 24.04 images
         type: string
         default: v2026.11.4
   push:
     paths:
-      - verify/release-upgrade-test.sh
+      - userpatches/roxora/**
+      - verify/**
+      - docs/install.md
+      - .github/workflows/release-upgrade.yml
+  pull_request:
+    paths:
+      - userpatches/roxora/**
+      - verify/**
+      - docs/install.md
       - .github/workflows/release-upgrade.yml
 
 permissions:
@@ -24,14 +32,20 @@ permissions:
 jobs:
   release-upgrade:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 180
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        third_party: [false, true]
+        include:
+          - { board: radxa-rock-4d, flavor: cli, suffix: "" }
+          - { board: generic-rk3576-uefi, flavor: cli, suffix: "" }
+          - { board: radxa-rock-4d, flavor: gnome-minimal, suffix: "-gnome-minimal" }
+          - { board: radxa-rock-4d, flavor: gnome, suffix: "-gnome" }
     env:
       FROM: ${{ inputs.from || 'v2026.11.4' }}
-      NAME: roxora-radxa-rock-4d-noble-edge
+      BOARD: ${{ matrix.board }}
+      FLAVOR: ${{ matrix.flavor }}
+      SUFFIX: ${{ matrix.suffix }}
     steps:
       - name: Free disk space
         run: |
@@ -46,40 +60,55 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends apt-utils snapd u-boot-tools xz-utils > /dev/null
+          sudo apt-get install -y -qq --no-install-recommends apt-utils snapd u-boot-tools xz-utils \
+            qemu-system-arm qemu-efi-aarch64 > /dev/null
+
+      - name: The release packages of this commit
+        run: |
+          for suite in noble resolute; do
+            userpatches/roxora/packages/build.sh --suite "${suite}" --flavor "${FLAVOR}" --out "release-debs/${suite}"
+          done
 
       - name: The 24.04 image, updated to this commit's release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
-          userpatches/roxora/packages/build.sh --suite noble --flavor cli --out release-debs
+          name="roxora-${BOARD}-noble-edge${SUFFIX}-${FROM#v}"
+          echo "OLD=${name}" >> "$GITHUB_ENV"
           gh release download "${FROM}" --repo roxora-os/build --dir old \
-            --pattern "${NAME}-${FROM#v}.img.xz" --pattern "${NAME}-${FROM#v}.img.xz.sha256"
-          (cd old && sha256sum -c ./*.sha256)
-          sudo verify/upgrade-test.sh --release-debs release-debs "old/${NAME}-${FROM#v}.img.xz" upgraded.img
+            --pattern "${name}.img.xz" --pattern "${name}.img.xz.part*" --pattern "${name}.img.xz.sha256"
+          cd old
+          if [[ ! -f "${name}.img.xz" ]]; then
+            cat "${name}.img.xz.part"* > "${name}.img.xz"
+            rm "${name}.img.xz.part"*
+          fi
+          sha256sum -c "${name}.img.xz.sha256"
+          cd ..
+          mkdir -p logs
+          sudo verify/upgrade-test.sh --flavor "${FLAVOR}" --release-debs release-debs/noble \
+            "old/${name}.img.xz" upgraded.img | tee logs/upgrade.txt
           rm -rf old
 
       - name: do-release-upgrade
-        id: dru
-        continue-on-error: true
-        env:
-          THIRD_PARTY: ${{ matrix.third_party }}
         run: |
-          userpatches/roxora/packages/build.sh --suite resolute --flavor cli --out release-debs-resolute
-          args=(--release-debs release-debs-resolute)
-          [[ "${THIRD_PARTY}" == true ]] && args+=(--allow-third-party)
-          sudo verify/release-upgrade-test.sh "${args[@]}" upgraded.img logs
+          sudo verify/release-upgrade-test.sh --release-debs release-debs upgraded.img logs
+          df -h /
 
       - name: Verify the result as a 26.04 system
-        continue-on-error: true
         run: |
           set -o pipefail
-          sudo verify/verify-image.sh --upgraded --flavor cli upgraded.img | sudo tee logs/verify.txt
+          sudo verify/verify-image.sh --upgraded --flavor "${FLAVOR}" upgraded.img | sudo tee logs/verify.txt
+
+      - name: Boot in QEMU
+        if: ${{ matrix.board == 'generic-rk3576-uefi' }}
+        run: |
+          set -o pipefail
+          verify/qemu-boot.sh upgraded.img logs/qemu-serial.log | sudo tee logs/qemu.txt
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: release-upgrade-third-party-${{ matrix.third_party }}
+          name: release-upgrade-${{ matrix.board }}-${{ matrix.flavor }}
           path: logs/
           if-no-files-found: ignore

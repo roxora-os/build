@@ -8,8 +8,9 @@
 #
 # roxora-release: what every Roxora system of this release shares (the apt
 # sources and pins of Roxora's repository and of the hardware repository,
-# cloud-init's settings, the system font directories) and its dependencies
-# on Roxora's keyring, hwtool and wallpapers. One package per flavor
+# cloud-init's settings, the system font directories, the release
+# upgrader's settings for those sources) and its dependencies on Roxora's
+# keyring, hwtool, wallpapers and Ubuntu's release upgrader. One package per flavor
 # (roxora-cli, roxora-desktop-gnome-minimal, roxora-desktop-gnome), which
 # depends on roxora-release of the same version, on what that flavor needs,
 # and writes /etc/roxora-release. Without --flavor, all three.
@@ -155,6 +156,9 @@ sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${ROXORA_DIR}/apt/roxora.pref.in" > "${
 sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/apt/roxora.sources.in" > "${pkg}/etc/apt/sources.list.d/roxora.sources"
 sed -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/apt/armbian.sources.in" > "${pkg}/etc/apt/sources.list.d/armbian.sources"
 install -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${pkg}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
+install -d "${pkg}/etc/update-manager/release-upgrades.d"
+sed -e "s|@ROXORA_URI@|${ROXORA_REPO_URI}|g" -e "s|@HW_URI@|$(sed -n 's/^URIs: //p' "${ROXORA_DIR}/apt/armbian.sources.in")|g" \
+	"${ROXORA_DIR}/apt/release-upgrades.cfg.in" > "${pkg}/etc/update-manager/release-upgrades.d/roxora.cfg"
 write_copyright "${pkg}" roxora-release
 awk -v t="${takeover}" -v r="${rewrites:-$'\t:\n'}" '$0 == "@TAKEOVER@" { print t; next } $0 == "@REWRITES@" { printf "%s", r; next } { print }' "${HERE}/roxora-release.preinst" > "${pkg}/DEBIAN/preinst"
 for script in postinst postrm; do
@@ -167,7 +171,7 @@ cat > "${pkg}/DEBIAN/control" <<- CONTROL
 	Maintainer: Roxora Project <oss@gahingwoo.com>
 	Section: admin
 	Priority: optional
-	Depends: roxora-archive-keyring (>= ${KEYRING_VERSION}), roxora-hwtool (>= ${HWTOOL_VERSION}), roxora-wallpapers (>= ${WALLPAPERS_VERSION})${ubuntu_defaults}
+	Depends: roxora-archive-keyring (>= ${KEYRING_VERSION}), roxora-hwtool (>= ${HWTOOL_VERSION}), roxora-wallpapers (>= ${WALLPAPERS_VERSION}), ubuntu-release-upgrader-core${ubuntu_defaults}
 	Homepage: https://roxora-os.github.io
 	Description: Roxora ${ROXORA_RELEASE}: what every Roxora system shares
 	 The part of Roxora release ${ROXORA_RELEASE} for Ubuntu ${ubuntu} (${suite}) that

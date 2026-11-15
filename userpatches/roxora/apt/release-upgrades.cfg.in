@@ -1,0 +1,12 @@
+# Installed by roxora-release.
+#
+# Ubuntu's release upgrader (do-release-upgrade) turns off every apt source
+# it does not know. These two it moves to the new Ubuntu release instead:
+# Roxora's repository and the hardware repository, which carry the release
+# packages and the kernel, device tree, U-Boot and firmware for that
+# release. Every other third-party source is handled as Ubuntu handles it.
+# See https://github.com/roxora-os/build/blob/main/docs/architecture.md
+
+[ThirdPartyMirrors]
+roxora = @ROXORA_URI@
+hardware = @HW_URI@
