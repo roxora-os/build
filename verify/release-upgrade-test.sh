@@ -1,6 +1,6 @@
 #!/bin/bash
-# dpkg-query formats are single-quoted on purpose.
-# shellcheck disable=SC2016
+# dpkg-query formats are single-quoted on purpose; cleanup runs from the trap.
+# shellcheck disable=SC2016,SC2317,SC2012
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2026 Ga Hing Woo <gahing@gahingwoo.com>
 #
@@ -158,6 +158,12 @@ declare -i status=0
 			echo 'deb [trusted=yes] file:/tmp/roxora-release-test ./' > "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.list"
 		fi
 		in_chroot sh -c 'apt-get update && apt-get -y full-upgrade' || status=$?
+		# What full-upgrade kept back, and why, then the flavor package by
+		# name, as "apt install" would take it.
+		flavor_pkg="$(in_chroot dpkg-query -W -f '${Package}\n' roxora-cli roxora-desktop-gnome-minimal roxora-desktop-gnome 2> /dev/null | head -1)"
+		echo "== apt-get install ${flavor_pkg} roxora-release"
+		in_chroot apt-get -s -o Debug::pkgProblemResolver=1 install "${flavor_pkg}" roxora-release 2>&1 | tail -40 || true
+		in_chroot apt-get -y install "${flavor_pkg}" roxora-release || status=$?
 		rm -rf "${mnt}/tmp/roxora-release-test" "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.list" \
 			"${mnt}"/var/lib/apt/lists/_tmp_roxora-release-test_*
 		in_chroot apt-get update -qq || true
