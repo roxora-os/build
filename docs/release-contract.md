@@ -15,6 +15,40 @@ them.
   builds every line of `boards.conf`, verifies each image and publishes the
   GitHub release.
 
+## Release packages
+
+From 2026.11.5 on, each release also has release packages: `roxora-release`
+and one package per flavor (`roxora-cli`, `roxora-desktop-gnome-minimal`,
+`roxora-desktop-gnome`), built from the tagged commit
+(`userpatches/roxora/packages/`), in the images and in
+[Roxora's apt repository](https://roxora-os.github.io/apt/) (see
+[architecture.md](architecture.md#roxoras-apt-repository)).
+
+- Their version is the release version, `+` and the Ubuntu version:
+  `2026.11.5+24.04`, `2026.11.5+26.04`. A beta would be `2026.12.0~beta.1+24.04`,
+  which sorts before the release.
+- `ROXORA_RELEASE` in `userpatches/roxora/roxora-repo.conf` is that version
+  without the Ubuntu part. `release.yml` stops unless it is the tag's
+  version, so it is raised before a release is tagged, in the commit that
+  starts the release's changes to the packages.
+- roxora-os/apt builds them from the tag and publishes them within the hour
+  after the release is published (betas are not published there yet). A
+  published version never changes.
+- On a system they write `/etc/roxora-release` (a link to
+  `/usr/lib/roxora-release`): shell variable assignments, read by tools
+  such as hwtool. Consumers ignore keys they do not know.
+
+| Key | Meaning |
+| --- | --- |
+| `ROXORA_VERSION` | Roxora release, `YYYY.MM.N`. |
+| `ROXORA_FLAVOR` | `cli`, `gnome-minimal` or `gnome`. |
+| `ROXORA_UBUNTU_CODENAME` | Ubuntu release, `noble` or `resolute`. |
+| `ROXORA_PACKAGE` | The flavor package that wrote the file. |
+
+A system that has no `/etc/roxora-release` runs an image up to 2026.11.4
+that has not been updated as in
+[install.md](install.md#updating-to-a-new-roxora-release).
+
 ## Image files
 
 One image per line of `boards.conf`:

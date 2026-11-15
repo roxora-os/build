@@ -241,14 +241,79 @@ Appearance.
 
 ## 5. Updates
 
-Ubuntu packages come from the Ubuntu archive, and the kernel, device tree,
-U-Boot and firmware packages from Armbian's repository:
+Ubuntu packages come from the Ubuntu archive, the kernel, device tree,
+U-Boot and firmware packages from Armbian's repository, and Roxora's own
+packages from [Roxora's repository](https://roxora-os.github.io/apt/):
 
     sudo apt update && sudo apt full-upgrade
 
-Security updates install automatically (unattended-upgrades), as on Ubuntu
-server. On a desktop image the snaps update on their own from the snap
-store, as on Ubuntu.
+Security updates of Ubuntu packages install automatically
+(unattended-upgrades), as on Ubuntu server; the others arrive with the
+command above. On a desktop image the snaps update on their own from the
+snap store, as on Ubuntu.
+
+### Updating to a new Roxora release
+
+From 2026.11.5 on, an image has Roxora's apt repository set up and a
+release package for its flavor: `roxora-cli`, `roxora-desktop-gnome-minimal`
+or `roxora-desktop-gnome`, with `roxora-release`, which they share. When a
+new Roxora release comes out, its release packages reach the repository
+within the hour, and the command above brings them: the system then has
+what that release changed in its image, as far as packages can carry it.
+That is new packages for the flavor (2026.11.5 adds NetworkManager to the
+command line image), new versions of hwtool and the wallpapers, Roxora's apt
+sources and pins and cloud-init's settings, and the steps a release needs
+that apt cannot express, which the packages run once. `cat /etc/roxora-release`
+shows the release and the flavor.
+
+What an update does not do: it does not repeat the first boot (the account,
+the SSH host keys, the size of the root file system stay as they are), it
+does not write a new bootloader to the SPI flash or the card (step 2 and
+the [hardware test](hardware-test.md) say how to do that), and it does not
+reboot; a new kernel takes effect at the next reboot, as with any kernel
+update. Configuration files you changed stay yours: when a release package
+has a new version of one, apt asks before it replaces it, as Ubuntu does
+for its own packages.
+
+Images up to 2026.11.4 do not have the repository. Add it once, with its
+key, on the console or over SSH:
+
+<!-- roxora-join:begin -->
+
+    sudo curl -fsSL -o /usr/share/keyrings/roxora-archive-keyring.gpg https://roxora-os.github.io/apt/roxora-archive-keyring.gpg
+    gpg --show-keys /usr/share/keyrings/roxora-archive-keyring.gpg
+    . /etc/os-release && printf 'Types: deb\nURIs: https://roxora-os.github.io/apt\nSuites: %s\nComponents: main\nSigned-By: /usr/share/keyrings/roxora-archive-keyring.gpg\n' "${VERSION_CODENAME}" | sudo tee /etc/apt/sources.list.d/roxora.sources
+    sudo apt update
+
+<!-- roxora-join:end -->
+
+The second command shows the key: its fingerprint must be
+`07353CCFAF21725418E3CE4798FC2BE6A9A8952D`. If it is not, delete the file
+and stop. Then install the release package of your image's flavor:
+
+| Image | Command |
+| --- | --- |
+| Command line | `sudo apt install --no-install-recommends roxora-cli` |
+| GNOME minimal | `sudo apt install --no-install-recommends roxora-desktop-gnome-minimal` |
+| GNOME | `sudo apt install --no-install-recommends roxora-desktop-gnome` |
+
+`apt list --installed 'ubuntu-desktop*'` tells a desktop image apart: it
+lists `ubuntu-desktop-minimal` on GNOME minimal and `ubuntu-desktop` on
+GNOME; a command line image has neither. `--no-install-recommends` gives
+the packages the new image has and no more (without it, apt would add
+ModemManager and PPP to NetworkManager on a command line image). The
+release package takes over Roxora's configuration files the image already
+has: the apt sources and pins and cloud-init's settings. Unchanged ones it
+replaces with its own; for one you changed, apt asks first. Finish with
+
+    sudo apt update && sudo apt full-upgrade
+
+From then on that command brings each new release.
+
+### From Ubuntu 24.04 to 26.04
+
+Upgrading the Ubuntu release of an installed system (`do-release-upgrade`)
+is not supported yet. Write the 26.04 image instead.
 
 ## Problems
 

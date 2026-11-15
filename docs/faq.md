@@ -151,9 +151,30 @@ it is part of the image, not of the cloud-init seed. See cloud-init's
   releases when the image is built and installed with DKMS. DKMS rebuilds it
   for each new kernel, but apt does not update the driver itself.
 
-There is no Roxora apt repository. New Roxora images are published as
+- Roxora's own packages (hwtool, the wallpapers and the release packages)
+  come from Roxora's repository (`roxora-os.github.io/apt`), signed with
+  Roxora's key. The pin takes only `roxora-*` packages from there. These
+  too arrive with `sudo apt update && sudo apt full-upgrade`, not
+  automatically.
+
+New Roxora images are published as
 [GitHub releases](https://github.com/roxora-os/build/releases) of this
-repository; an installed system does not need them to stay up to date.
+repository. An installed system does not need them: the next question says
+how it gets to a new release.
+
+## How do I get to a new Roxora release without writing a new image?
+
+With `sudo apt update && sudo apt full-upgrade`, from 2026.11.5 on: each
+release publishes release packages that bring an installed system what the
+release changed in its image. An image up to 2026.11.4 needs Roxora's
+repository added once first. Both are in
+[Updating to a new Roxora release](install.md#updating-to-a-new-roxora-release).
+A new bootloader is not part of it.
+
+## Can I upgrade from Ubuntu 24.04 to 26.04?
+
+Not yet: `do-release-upgrade` is not supported on Roxora. Write the 26.04
+image of your board instead, and copy your data over.
 
 ## Can I update the kernel and go back?
 

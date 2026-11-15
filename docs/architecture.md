@@ -82,9 +82,14 @@ What the extension does, in order:
    [faq.md](faq.md#how-do-i-log-in-the-first-time)). Automatic security
    updates are on, as on Ubuntu's server images.
 8. On desktop flavors only: installs Ubuntu's desktop metapackage, hands the
-   network to NetworkManager, seeds the snaps and installs the Hardware Tool
-   app (see [Desktop flavors](#desktop-flavors)).
-9. On UEFI images only: leaves out `linux-dtb`, replaces the GRUB settings
+   network to NetworkManager and seeds the snaps (see
+   [Desktop flavors](#desktop-flavors)).
+9. Adds Roxora's apt repository and installs Roxora's packages: the
+   keyring, hwtool (with its GTK app on a desktop) and the wallpapers from
+   the repository, and the release packages of the commit, which own
+   Roxora's apt sources, pins and cloud-init settings from then on (see
+   [Roxora's apt repository](#roxoras-apt-repository)).
+10. On UEFI images only: leaves out `linux-dtb`, replaces the GRUB settings
    of Armbian's GRUB support with Roxora's, removes its wallpaper and fonts,
    leaves out the packages it adds that Ubuntu's server image does not have
    (`efivar`, `busybox`, `cloud-initramfs-growroot`), and turns off firmware boot entry updates (see [UEFI images](#uefi-images)).
@@ -98,7 +103,8 @@ on `ttyS0` at 1500000 baud, and the hostname set to the board name.
 
 ## Where packages come from
 
-The image keeps both apt sources Armbian writes:
+The image keeps both apt sources Armbian writes, and adds Roxora's (see
+[Roxora's apt repository](#roxoras-apt-repository)):
 
 - `/etc/apt/sources.list.d/ubuntu.sources`: `ports.ubuntu.com`, with
   `noble`, `noble-updates`, `noble-security` and `noble-backports`.
@@ -147,6 +153,111 @@ it, they come from the Ubuntu archive.
 The BSP package itself (`armbian-bsp-cli-*`) is not in the hardware patterns.
 Roxora builds its own version of it, and an update from Armbian's repository
 would bring back the removed files, so it is never upgraded from there.
+
+## Roxora's apt repository
+
+[roxora-os/apt](https://github.com/roxora-os/apt) publishes Roxora's own
+packages at https://roxora-os.github.io/apt, one suite per Ubuntu release
+(`noble`, `resolute`) with one component, `main`. Its Release files are
+signed with Roxora's key (Ed25519, fingerprint
+`07353CCFAF21725418E3CE4798FC2BE6A9A8952D`). Every image has:
+
+- `/etc/apt/sources.list.d/roxora.sources`
+  ([`roxora.sources.in`](../userpatches/roxora/apt/roxora.sources.in)): the
+  URL, the image's Ubuntu release as the suite, and
+  `Signed-By: /usr/share/keyrings/roxora-archive-keyring.gpg`, the key from
+  the `roxora-archive-keyring` package.
+- `/etc/apt/preferences.d/roxora.pref`
+  ([`roxora.pref.in`](../userpatches/roxora/apt/roxora.pref.in)):
+
+      Package: roxora-*
+      Pin: origin "roxora-os.github.io"
+      Pin-Priority: 500
+
+      Package: *
+      Pin: origin "roxora-os.github.io"
+      Pin-Priority: -1
+
+  The records match the host the repository is served from, not a field of
+  its Release file, so nothing but `roxora-*` packages can come from there,
+  whatever its index lists. Armbian's -1 record keeps any `roxora-*` package
+  of Armbian's repository out.
+
+What the repository carries, and the versions an image installs from it
+([`roxora-repo.conf`](../userpatches/roxora/roxora-repo.conf)):
+
+| Package | What it is | Built by |
+| --- | --- | --- |
+| `roxora-archive-keyring` | the repository's key | roxora-os/apt |
+| `roxora-hwtool`, `roxora-hwtool-gtk` | hwtool and its GTK app, from hwtool's GitHub releases | roxora-os/hwtool |
+| `roxora-wallpapers` | the wallpapers, from roxora-os/design at a fixed commit | roxora-os/apt |
+| `roxora-release` | what every flavor of a release shares | this repository, [`packages/`](../userpatches/roxora/packages) |
+| `roxora-cli`, `roxora-desktop-gnome-minimal`, `roxora-desktop-gnome` | one per flavor | this repository |
+
+A new hwtool or Roxora release reaches the repository within the hour (its
+workflow looks every hour); a published version never changes.
+
+### Release packages
+
+The release packages bring an installed system what a release changed in its
+image. Their version is the Roxora release, `+` and the Ubuntu version
+(`2026.11.5+24.04`), so each suite has its own build and a later release is
+always the newer package.
+
+`roxora-release` owns, as configuration files: the source list and pin of
+Roxora's repository, the source list of the hardware repository
+(`armbian.sources`, as Armbian's build writes it,
+[`armbian.sources.in`](../userpatches/roxora/apt/armbian.sources.in)) and its
+pin (`roxora-hardware.pref`), and cloud-init's settings (`99-roxora.cfg`). It
+also owns `/usr/share/fonts`, creates `/usr/local/share/fonts` (see
+[Desktop flavors](#desktop-flavors) for why both must exist), and depends on
+the keyring, hwtool and the wallpapers.
+
+Each flavor package depends on `roxora-release` of its own version and on
+what that flavor's image has in the release: `roxora-cli` on
+NetworkManager (from 2026.11.5 on); the desktop packages on NetworkManager
+and the GTK app of hwtool, they recommend Ubuntu's desktop metapackage, and
+own `99-roxora-desktop.cfg`. One flavor package is installed at a time;
+installing another replaces it. The flavor package writes
+`/usr/lib/roxora-release`, linked from `/etc/roxora-release`:
+
+    ROXORA_VERSION=2026.11.5
+    ROXORA_FLAVOR=cli
+    ROXORA_UBUNTU_CODENAME=noble
+    ROXORA_PACKAGE=roxora-cli
+
+Steps that apt cannot express run in the packages' maintainer scripts, once,
+by the version a system comes from, and never against a setting the user
+changed: on its first installation a desktop package disables
+systemd-networkd's enablement as the desktop images have it (only where
+Ubuntu's netplan file makes NetworkManager the renderer; nothing is stopped,
+it counts from the next boot). Nothing reboots, and nothing repeats the first
+boot or writes a bootloader.
+
+Configuration files. Images up to 2026.11.4 have Roxora's files without a
+package. dpkg takes over a file that is exactly as the package ships it;
+for older versions of a file, the package's preinst moves it aside when its
+SHA-256 is that of an earlier image
+([`takeover.list`](../userpatches/roxora/packages/takeover.list)), and puts
+it back if the installation fails. A file the user changed stays, and dpkg
+asks about it, as about any configuration file. Removing `roxora-release`
+leaves its files in place; purging it removes the sources and pins of both
+repositories together, so the system then takes nothing more from either.
+
+The image build runs [`packages/build.sh`](../userpatches/roxora/packages/build.sh)
+and installs the release packages it writes, with the other packages from
+the repository at the versions of `roxora-repo.conf`. roxora-os/apt runs the
+same script at the release's tag to publish them. So a change to the
+release packages is built and checked with the images before it reaches any
+installed system, and a release's packages reach the repository with the
+release, not before. A release tag must carry its version as
+`ROXORA_RELEASE` (release.yml checks).
+
+Images install packages without their recommended packages; apt installs
+those on a running system. A release that adds a package to a flavor
+package should check what that package recommends: `apt full-upgrade`
+brings it on upgraded systems. The upgrade test (see
+[Verification](#verification)) shows it.
 
 ## Boot
 
@@ -353,9 +464,11 @@ the first boot (host keys, growing the root file system, the swap file).
 On the desktop flavors `roxora` is also in the `lpadmin` and `users`
 groups, as Ubuntu's first desktop user is.
 
-Roxora's own parts are two packages: `roxora-wallpapers`, in every flavor,
-whose settings override makes Facet the default wallpaper, and
-`roxora-hwtool-gtk`, the GTK app of hwtool, in the desktop flavors.
+Roxora's own parts are packages from
+[Roxora's apt repository](#roxoras-apt-repository): `roxora-wallpapers`, in
+every flavor, whose settings override makes Facet the default wallpaper,
+`roxora-hwtool-gtk`, the GTK app of hwtool, and the flavor's release
+package (`roxora-desktop-gnome-minimal` or `roxora-desktop-gnome`).
 
 The boot is not changed: no boot splash is set up, so kernel messages show
 until GDM starts.
@@ -374,6 +487,16 @@ throwaway overlay) and checks:
   only hardware packages have an Armbian candidate, `base-files` comes from
   the Ubuntu archive, and a simulated `full-upgrade` takes nothing else from
   Armbian;
+- Roxora's repository: its source list, pin and key (fingerprint as in
+  `roxora-repo.conf`) and the hardware repository's source list and pin
+  are as `roxora-release` and `roxora-archive-keyring` ship them and owned
+  by them; only `roxora-*` packages have their candidate in Roxora's
+  repository, and a simulated `full-upgrade` takes nothing else from it;
+- the release packages: `roxora-release` and the flavor's package at the
+  release of `roxora-repo.conf` for the image's Ubuntu release, no other
+  flavor package, and `/etc/roxora-release` with that release and flavor;
+  the keyring, hwtool (and its GTK app on a desktop) and the wallpapers at
+  the versions of `roxora-repo.conf`, from Roxora's repository;
 - none of the removed paths exist, `dpkg --verify` finds no changed Ubuntu
   files beyond `keep-modified.list`, and `/etc/os-release` is Ubuntu's;
 - board images: the boot script, environment, kernel, `uInitrd`, device
@@ -395,8 +518,7 @@ throwaway overlay) and checks:
   `graphical.target`, without automatic login; NetworkManager is enabled and
   netplan's renderer, cloud-init writes no network configuration and
   systemd-networkd is not enabled; the CJK fonts are installed; the default
-  wallpaper in the compiled GNOME settings is Facet; the Hardware Tool app
-  is installed; every snap of `snaps.list` is in the seed in its channel,
+  wallpaper in the compiled GNOME settings is Facet; every snap of `snaps.list` is in the seed in its channel,
   the model is `generic-classic`, and `snap debug validate-seed` accepts
   the seed. A `cli` image must have none of the desktop parts.
 
@@ -411,6 +533,18 @@ edk2 build, device tree from the firmware) and checks that the firmware
 starts GRUB and GRUB starts the kernel
 ([`qemu-boot.sh`](../verify/qemu-boot.sh)). QEMU is not a board, so this
 says nothing about the board's hardware.
+
+The upgrade test (`.github/workflows/upgrade.yml`,
+[`upgrade-test.sh`](../verify/upgrade-test.sh)) takes published images of
+the previous release (a command line board image, a command line UEFI image
+and a desktop image), runs the commands of
+[Updating to a new Roxora release](install.md#updating-to-a-new-roxora-release)
+in a chroot as they are written, with the release packages of the commit
+under test, and checks the result with `verify-image.sh --upgraded`: the
+same checks as for a new image, except that the bootloader on the disk may
+be older than an updated U-Boot package. A question from dpkg about a
+configuration file fails it. The images have not booted, so it says
+nothing about services of a running system.
 
 ## What Roxora does not do
 
@@ -427,6 +561,7 @@ says nothing about the board's hardware.
   the desktop is the same: Mesa on the kernel's panfrost driver, and no
   Mali userspace from Rockchip (see [faq.md](faq.md#does-the-desktop-on-the-vendor-kernel-use-rockchips-mali-driver)).
 - No Debian images. Roxora is Ubuntu only, starting with 24.04 (noble).
-- No apt repository of its own. Userspace updates come from the Ubuntu
-  archive, hardware updates from Armbian. Roxora's own packages in the
-  image (hwtool, the wallpapers) are installed as files at build time.
+- No packages of other projects in its apt repository. Userspace updates
+  come from the Ubuntu archive, hardware updates from Armbian; Roxora's
+  repository carries only Roxora's own packages, and the pin takes nothing
+  else from it.

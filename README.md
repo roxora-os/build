@@ -21,15 +21,19 @@ marked as tested: so far the Radxa ROCK 4D with Ubuntu 26.04.
 
 Images include the command line part of
 [hwtool](https://github.com/roxora-os/hwtool), Roxora's hardware tool
-(device tree overlays, kernel branch, bootloader, NPU and more), pinned in
-[`userpatches/roxora/hwtool.conf`](userpatches/roxora/hwtool.conf); the
+(device tree overlays, kernel branch, bootloader, NPU and more); the
 desktop images also have its GTK app.
 They also include Roxora's wallpapers (by DavidQyn with Ga Hing Woo,
-CC BY-SA 4.0, from [roxora-os/design](https://github.com/roxora-os/design)),
-in a package built from a pinned commit
-([`userpatches/roxora/wallpapers/`](userpatches/roxora/wallpapers/)). On a
-GNOME desktop they are in the background list in Settings, with Facet as the
-default.
+CC BY-SA 4.0, from [roxora-os/design](https://github.com/roxora-os/design)).
+On a GNOME desktop they are in the background list in Settings, with Facet
+as the default.
+
+These come from [Roxora's apt repository](https://roxora-os.github.io/apt/)
+([roxora-os/apt](https://github.com/roxora-os/apt)), at the versions in
+[`userpatches/roxora/roxora-repo.conf`](userpatches/roxora/roxora-repo.conf),
+and so do the release packages, which bring an installed system to each new
+Roxora release with `sudo apt update && sudo apt full-upgrade` (see
+[Updating to a new Roxora release](docs/install.md#updating-to-a-new-roxora-release)).
 
 ## Flavors
 
