@@ -313,7 +313,10 @@ From then on that command brings each new release.
 ### From Ubuntu 24.04 to 26.04
 
 Upgrading the Ubuntu release of an installed system (`do-release-upgrade`)
-is not supported yet. Write the 26.04 image instead.
+is not supported yet: write the 26.04 image instead, and copy your data
+over. The upgrade has been tried only in CI, on an image in a chroot, and
+nobody has booted a board after it; what that showed is in
+[architecture.md](architecture.md#ubuntu-release-upgrades).
 
 ## Problems
 

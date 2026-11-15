@@ -174,7 +174,9 @@ A new bootloader is not part of it.
 ## Can I upgrade from Ubuntu 24.04 to 26.04?
 
 Not yet: `do-release-upgrade` is not supported on Roxora. Write the 26.04
-image of your board instead, and copy your data over.
+image of your board instead, and copy your data over. It has been tried in
+CI without a board; [architecture.md](architecture.md#ubuntu-release-upgrades)
+says what works and what is missing.
 
 ## Can I update the kernel and go back?
 
