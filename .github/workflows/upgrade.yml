@@ -1,0 +1,106 @@
+# Upgrades published images of an earlier release to this commit's release
+# the way docs/install.md says (verify/upgrade-test.sh), then checks the
+# result with verify-image.sh --upgraded. One command line image on a board,
+# one on the UEFI image, one desktop.
+name: Upgrade
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Release tag whose images are upgraded
+        type: string
+        default: v2026.11.4
+  push:
+    paths:
+      - userpatches/roxora/**
+      - verify/**
+      - docs/install.md
+      - .github/workflows/upgrade.yml
+  pull_request:
+    paths:
+      - userpatches/roxora/**
+      - verify/**
+      - docs/install.md
+      - .github/workflows/upgrade.yml
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { board: radxa-rock-4d, branch: edge, release: noble, flavor: cli, suffix: "" }
+          - { board: generic-rk3576-uefi, branch: edge, release: resolute, flavor: cli, suffix: "" }
+          - { board: radxa-rock-4d, branch: edge, release: noble, flavor: gnome-minimal, suffix: "-gnome-minimal" }
+    env:
+      FROM: ${{ inputs.from || 'v2026.11.4' }}
+      BOARD: ${{ matrix.board }}
+      BRANCH: ${{ matrix.branch }}
+      RELEASE: ${{ matrix.release }}
+      FLAVOR: ${{ matrix.flavor }}
+      SUFFIX: ${{ matrix.suffix }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends apt-utils snapd u-boot-tools xz-utils > /dev/null
+
+      - name: The release packages of this commit
+        run: |
+          userpatches/roxora/packages/build.sh --suite "${RELEASE}" --flavor "${FLAVOR}" --out release-debs
+
+      - name: Download the old image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${FROM#v}"
+          name="roxora-${BOARD}-${RELEASE}-${BRANCH}${SUFFIX}-${version}"
+          echo "OLD=${name}" >> "$GITHUB_ENV"
+          mkdir old
+          gh release download "${FROM}" --repo roxora-os/build --dir old \
+            --pattern "${name}.img.xz" --pattern "${name}.img.xz.part*" --pattern "${name}.img.xz.sha256"
+          ls -la old
+          cd old
+          if [[ ! -f "${name}.img.xz" ]]; then
+            cat "${name}.img.xz.part"* > "${name}.img.xz"
+            rm "${name}.img.xz.part"*
+          fi
+          sha256sum -c "${name}.img.xz.sha256"
+
+      - name: Upgrade
+        run: |
+          set -o pipefail
+          sudo verify/upgrade-test.sh --flavor "${FLAVOR}" --release-debs release-debs \
+            "old/${OLD}.img.xz" upgraded.img | tee "${OLD}.upgrade.txt"
+          rm "old/${OLD}.img.xz"
+          df -h /
+
+      - name: Verify the upgraded image
+        run: |
+          set -o pipefail
+          sudo verify/verify-image.sh --upgraded --flavor "${FLAVOR}" upgraded.img | tee "${OLD}.upgraded.verify.txt"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: upgrade-${{ env.OLD }}
+          path: |
+            ${{ env.OLD }}.upgrade.txt
+            ${{ env.OLD }}.upgraded.verify.txt
+          if-no-files-found: ignore
