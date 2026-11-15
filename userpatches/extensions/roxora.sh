@@ -94,7 +94,17 @@ function extension_prepare_config__roxora() {
 	# The default user is created when the image is built. unattended-upgrades installs security updates
 	# automatically, as on Ubuntu's server images.
 	declare pkg
-	for pkg in cloud-init cloud-guest-utils unattended-upgrades; do
+	declare -a extra=(cloud-init cloud-guest-utils unattended-upgrades)
+	# Wi-Fi on a command line image: NetworkManager, for its nmtui and nmcli.
+	# As Ubuntu packages it, NetworkManager manages only Wi-Fi and mobile
+	# broadband unless netplan makes it the renderer
+	# (/usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf), so
+	# wired Ethernet stays with systemd-networkd and cloud-init's netplan
+	# file, as before. Installed without its recommended packages, as
+	# everything in this list is. The desktop flavors get NetworkManager, with
+	# those, from Ubuntu's desktop metapackage instead.
+	[[ "${ROXORA_FLAVOR}" == cli ]] && extra+=(network-manager)
+	for pkg in "${extra[@]}"; do
 		EXTRA_PACKAGES_IMAGE+=("${pkg}")
 		EXTRA_PACKAGES_IMAGE_REFS+=("extension_prepare_config__roxora:${BASH_SOURCE[0]}:${LINENO}")
 	done

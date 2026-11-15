@@ -136,6 +136,21 @@ On the ROCK 4D also check the on-board Wi-Fi driver:
     dkms status                         # aic8800-usb ... installed for the running kernel
     ip -br link | grep wl               # a wlan interface exists
 
+Command line images after 2026.11.4, on a board with Wi-Fi (the ROCK 4D):
+
+    nmcli device                        # the wlan interface: disconnected; the wired one: unmanaged
+    sudo nmtui                          # Activate a connection, choose the network, enter the password
+    nmcli device                        # the wlan interface: connected
+    ip -br addr                         # an address on the wlan interface; the wired one keeps its own
+    networkctl                          # the wired interface: routable, configured
+
+Pass: `nmtui` lists the networks and connects; the wired interface is still
+run by systemd-networkd with the address it had (one DHCP lease, no second
+address on it from NetworkManager). Reboot: both interfaces come up again
+without a wait (`systemd-analyze blame | head` shows no entry near two
+minutes), with the cable plugged in. Repeat the reboot with the cable
+unplugged: the boot does not wait for the wired link, and Wi-Fi connects.
+
 ### B4. Warm boot
 
     sudo reboot

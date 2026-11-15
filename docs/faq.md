@@ -116,6 +116,16 @@ SD card. The SPI flash must hold a mainline U-Boot, which then boots the SD
 card. The CM5-IO prefers its eMMC over the SD card. See step 2 of
 [install.md](install.md#2-radxa-rock-4d-bootloader-into-spi-nor-flash).
 
+## How do I connect to Wi-Fi?
+
+On a desktop image, from the system menu. On a command line image (after
+2026.11.4), with `sudo nmtui`, or
+`sudo nmcli device wifi connect "<network name>" password "<password>"`.
+NetworkManager only runs Wi-Fi there; wired Ethernet stays with
+systemd-networkd, so nothing changes for a board on a cable. On an older
+command line image, install it first: `sudo apt install network-manager`
+gives the same setup.
+
 ## Are there desktop images?
 
 Yes. Besides the command line image, each board has two images with

@@ -118,3 +118,13 @@ libnl-genl-3-200                 dependency of iw (26.04)
 protection-domain-mapper         Recommends of ubuntu-desktop-minimal on arm64 (24.04): Qualcomm service helper, idle on Rockchip
 qrtr-tools                       Recommends of ubuntu-desktop-minimal on arm64 (24.04): Qualcomm IPC router tools, idle on Rockchip
 libqrtr1                         dependency of qrtr-tools
+
+# Command line images: NetworkManager for Wi-Fi (nmtui, nmcli), installed
+# without its recommended packages. Ubuntu's server image has none of these;
+# its desktop images have all of them. NetworkManager manages only Wi-Fi and
+# mobile broadband there (docs/architecture.md, Network).
+network-manager                  Wi-Fi setup on command line images with nmtui and nmcli; wired Ethernet stays with systemd-networkd
+libnm0                           dependency of network-manager
+libndp0                          dependency of network-manager
+libteamdctl0                     dependency of network-manager
+libbluetooth3                    dependency of network-manager

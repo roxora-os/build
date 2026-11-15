@@ -722,16 +722,57 @@ fi
 if [[ "${flavor}" == cli ]]; then
 	# A command line image has no desktop parts.
 	cli_errors=()
-	for p in gdm3 gnome-shell network-manager; do
+	for p in gdm3 gnome-shell; do
 		is_installed "${p}" && cli_errors+=("${p} is installed")
 	done
 	[[ ! -e "${R}/var/lib/snapd/seed/seed.yaml" ]] || cli_errors+=("snaps are seeded (/var/lib/snapd/seed/seed.yaml)")
-	[[ -f "${R}/var/lib/cloud/seed/nocloud/network-config" ]] || cli_errors+=("/var/lib/cloud/seed/nocloud/network-config missing")
 	if [[ ${#cli_errors[@]} -eq 0 ]]; then
-		pass "desktop: none (command line image): no display manager, no NetworkManager, no seeded snaps; cloud-init configures the wired network"
+		pass "desktop: none (command line image): no display manager, no seeded snaps"
 	else
 		fail "desktop: ${#cli_errors[@]} desktop parts in a command line image"
 		printf '%s\n' "${cli_errors[@]}" | detail
+	fi
+
+	# The network of a command line image: wired Ethernet with systemd-networkd
+	# from cloud-init's netplan file, as on Ubuntu's server images, and
+	# NetworkManager (for nmtui and nmcli) for Wi-Fi only. That split is
+	# Ubuntu's own: the network-manager package leaves every device but Wi-Fi
+	# and mobile broadband unmanaged, until a netplan file makes NetworkManager
+	# the renderer or a file of the same name in /etc replaces the setting.
+	net_errors=()
+	is_installed network-manager || net_errors+=("network-manager is not installed")
+	[[ -x "${R}/usr/bin/nmtui" && -x "${R}/usr/bin/nmcli" ]] || net_errors+=("nmtui or nmcli is missing")
+	[[ -L "${R}/etc/systemd/system/multi-user.target.wants/NetworkManager.service" ]] ||
+		net_errors+=("NetworkManager.service is not enabled")
+	managed="/usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf"
+	grep -qsx 'unmanaged-devices=\*,except:type:wifi,except:type:gsm,except:type:cdma' "${R}${managed}" ||
+		net_errors+=("${managed} does not keep NetworkManager to Wi-Fi and mobile broadband")
+	[[ ! -e "${R}/etc/NetworkManager/conf.d/10-globally-managed-devices.conf" ]] ||
+		net_errors+=("/etc/NetworkManager/conf.d/10-globally-managed-devices.conf replaces the package's setting (NetworkManager would manage Ethernet too)")
+	grep -rqs 'unmanaged-devices' "${R}/etc/NetworkManager" &&
+		net_errors+=("a file in /etc/NetworkManager sets unmanaged-devices")
+	for f in "${R}"/usr/lib/netplan/*.yaml "${R}"/lib/netplan/*.yaml "${R}"/etc/netplan/*.yaml; do
+		[[ -f "${f}" ]] || continue
+		grep -q '^[[:space:]]*renderer:[[:space:]]*NetworkManager' "${f}" &&
+			net_errors+=("${f#"${R}"} makes NetworkManager the netplan renderer")
+	done
+	seed_net="${R}/var/lib/cloud/seed/nocloud/network-config"
+	if [[ ! -f "${seed_net}" ]]; then
+		net_errors+=("/var/lib/cloud/seed/nocloud/network-config missing")
+	else
+		cmp -s "${LISTS}/cloud-init/network-config" "${seed_net}" ||
+			net_errors+=("/var/lib/cloud/seed/nocloud/network-config differs from userpatches/roxora/cloud-init")
+		grep -q 'renderer' "${seed_net}" && net_errors+=("the cloud-init network seed names a renderer")
+	fi
+	[[ -L "${R}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service" ]] ||
+		net_errors+=("systemd-networkd.service is not enabled")
+	[[ -L "${R}/etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service" ]] ||
+		net_errors+=("systemd-networkd-wait-online.service is not enabled")
+	if [[ ${#net_errors[@]} -eq 0 ]]; then
+		pass "network: wired Ethernet with systemd-networkd from cloud-init's seed (wait-online enabled); NetworkManager installed and enabled with nmtui, managing Wi-Fi and mobile broadband only (${managed})"
+	else
+		fail "network: ${#net_errors[@]} problems with the command line image's network setup"
+		printf '%s\n' "${net_errors[@]}" | detail
 	fi
 else
 	# The session: GDM starts at boot, into GNOME.

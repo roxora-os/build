@@ -292,7 +292,19 @@ directories that exist when it sets the snap up. In a desktop image the
 fonts are installed when the image is built and the snaps are set up at the
 first boot, so Firefox sees them.
 
-Network. On a desktop NetworkManager runs every device: `ubuntu-settings`
+Network. A command line image runs wired Ethernet with systemd-networkd,
+from the netplan file cloud-init writes from the image's seed, as Ubuntu's
+server images do. It also has NetworkManager, installed without its
+recommended packages, for `nmtui` and `nmcli`: Ubuntu's network-manager
+package ships
+`/usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf` with
+`unmanaged-devices=*,except:type:wifi,except:type:gsm,except:type:cdma`, so
+there it manages Wi-Fi and mobile broadband and nothing else. netplan lifts
+that only when a netplan file makes NetworkManager the renderer, which no
+file of a command line image does. Roxora adds no setting of its own; the
+check fails if that default changes.
+
+On a desktop NetworkManager runs every device: `ubuntu-settings`
 ships `/usr/lib/netplan/00-network-manager-all.yaml`, which makes it
 netplan's renderer, as on an installed Ubuntu desktop. So the desktop
 flavors differ from `cli` in two ways. cloud-init writes no network

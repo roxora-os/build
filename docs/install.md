@@ -190,6 +190,25 @@ Log in on the console or over SSH:
 The root account is locked; use `sudo`. Change the password before you
 connect the board to a network you do not trust.
 
+### Wi-Fi on a command line image
+
+Images after 2026.11.4 have NetworkManager's text interface for Wi-Fi. On
+the console or over SSH:
+
+    sudo nmtui
+
+Choose "Activate a connection", the network, and enter its password. Or in
+one line:
+
+    sudo nmcli device wifi connect "<network name>" password "<password>"
+
+The connection is kept and comes up again at every boot. `nmcli device`
+shows the state. NetworkManager runs only Wi-Fi (and mobile broadband) on
+these images: wired Ethernet stays with systemd-networkd, as before, and
+`nmcli device` lists it as `unmanaged`. If your network does not show in
+the list, set the Wi-Fi country, which decides the channels the board may
+use: `sudo hwtool wifi country <code>`.
+
 The image includes `hwtool` for the board's hardware settings: `hwtool info`
 shows what it found, and `hwtool --help` lists what it can change.
 
@@ -210,7 +229,8 @@ network is needed for that.
 SSH works as on the command line image, with the same account; changing the
 password over SSH or on the console first also counts for the login screen.
 The network is run by NetworkManager, as on any Ubuntu desktop: wired
-Ethernet gets its address by DHCP, and Wi-Fi is set up from the system menu.
+Ethernet gets its address by DHCP, and Wi-Fi is set up from the system menu
+(`nmtui` and `nmcli` work there too).
 
 Hardware Tool (the GTK app of `hwtool`) is in the application list, and the
 `hwtool` command works as on the command line image. The wallpaper is
