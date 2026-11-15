@@ -15,6 +15,9 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
       beta: ${{ steps.tag.outputs.beta }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - id: tag
         name: Check the tag format (vYYYY.MM.N, or vYYYY.MM.N-beta.N for a beta)
         run: |
@@ -23,6 +26,18 @@ jobs:
             { echo "tag ${tag} is not vYYYY.MM.N or vYYYY.MM.N-beta.N"; exit 1; }
           echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
           if [[ -n "${BASH_REMATCH[2]}" ]]; then echo "beta=true"; else echo "beta=false"; fi >> "$GITHUB_OUTPUT"
+      - name: Check the release packages' version
+        # The images carry roxora-release of ROXORA_RELEASE
+        # (userpatches/roxora/roxora-repo.conf), and roxora-os/apt publishes
+        # it from this tag: it must be the tag's version (a beta's -beta.N is
+        # ~beta.N there, so that it sorts before the release).
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          want="${version/-beta./~beta.}"
+          have="$(sed -n 's/^ROXORA_RELEASE=//p' userpatches/roxora/roxora-repo.conf)"
+          [[ "${have}" == "${want}" ]] ||
+            { echo "::error::ROXORA_RELEASE is '${have}' in userpatches/roxora/roxora-repo.conf; tag ${GITHUB_REF_NAME} needs '${want}'"; exit 1; }
+          echo "release packages ${have}"
 
   images:
     needs: check
