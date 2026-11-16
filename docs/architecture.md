@@ -192,6 +192,11 @@ whose Armbian release is another one:
   `stonking-backports`). It changes the suite and components of
   `armbian.sources` to the Armbian release's from the root file system
   stage on.
+- armbian/build makes an `armbian-base-files` package for every image
+  (Roxora does not install it) from the release's `base-files`, whose file
+  name it reads from a list Armbian publishes for its releases. The
+  extension reads it from the Ubuntu archive's index instead (a wrapper
+  around `apt_find_upstream_package_version_and_download_url`).
 
 Armbian's package lists for the root file system are those it uses for
 every release (`config/cli/_all_distributions`); resolute has only a list
