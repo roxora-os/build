@@ -34,7 +34,8 @@ import re
 import sys
 
 REPO = "roxora-os/build"
-UBUNTU_VERSIONS = {"noble": "24.04", "resolute": "26.04"}
+# Ubuntu releases and their versions: CODENAME and VERSION of releases.conf.
+RELEASES_CONF = pathlib.Path(__file__).resolve().parents[2] / "userpatches/roxora/releases.conf"
 TAG_RE = re.compile(r"^v(\d{4}\.\d{2}\.\d+(-beta\.\d+)?)$")
 # GitHub refuses a release file of 2 GiB (2147483648 bytes) or more. Larger
 # images are published in parts of this size, 1900 MiB: under the limit with
@@ -60,6 +61,16 @@ def read_boards(path):
                        "flavor": flavor, "status": status, "soc": soc,
                        "vendor": vendor, "name": " ".join(name)})
     return boards
+
+
+def ubuntu_versions():
+    """{codename: Ubuntu version} from releases.conf."""
+    versions = {}
+    for line in RELEASES_CONF.read_text(encoding="utf-8").splitlines():
+        fields = line.split("#", 1)[0].split()
+        if fields:
+            versions[fields[0]] = fields[1]
+    return versions
 
 
 def needs_uefi(board):
@@ -144,7 +155,10 @@ def make(args):
     base = f"https://github.com/{REPO}/releases/download/{args.tag}/"
     d = pathlib.Path(args.dir)
     images = []
+    versions = ubuntu_versions()
     for b in read_boards(args.boards):
+        if b["release"] not in versions:
+            sys.exit(f"boards.conf: Ubuntu release {b['release']!r} is not in {RELEASES_CONF}")
         # A command line image has no flavor in its name.
         suffix = "" if b["flavor"] == "cli" else f"-{b['flavor']}"
         stem = f"roxora-{b['board']}-{b['release']}-{b['branch']}{suffix}-{version}"
@@ -162,7 +176,7 @@ def make(args):
             "vendor": b["vendor"],
             "soc": b["soc"],
             "release": b["release"],
-            "ubuntu_version": UBUNTU_VERSIONS[b["release"]],
+            "ubuntu_version": versions[b["release"]],
             "branch": b["branch"],
             "flavor": b["flavor"],
             "kernel": kernel,

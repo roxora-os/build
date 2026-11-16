@@ -66,13 +66,19 @@ if ! awk -v r="${suite}" '!/^[[:space:]]*(#|$)/ && $3 == r { found = 1 } END { e
 	echo "packages/build.sh: boards.conf has no image for ${suite}, nothing to build"
 	exit 0
 fi
-# The Ubuntu version, and the release a release upgrade comes from.
-previous=""
-case "${suite}" in
-	noble) ubuntu=24.04 ;;
-	resolute) ubuntu=26.04 previous=noble ;;
-	*) die "no Ubuntu version known for ${suite}" ;;
-esac
+# release_field <codename> <column>: a column of releases.conf
+# (2 VERSION, 3 PREVIOUS, 4 ARMBIAN).
+release_field() {
+	awk -v r="$1" -v c="$2" '!/^[[:space:]]*(#|$)/ && $1 == r { print $c; found = 1 } END { exit !found }' "${ROXORA_DIR}/releases.conf" ||
+		die "$1 is not in releases.conf"
+}
+# The Ubuntu version, the release a release upgrade comes from, and the
+# hardware repository's suite: the Armbian release the hardware layer comes
+# with.
+ubuntu="$(release_field "${suite}" 2)"
+previous="$(release_field "${suite}" 3)"
+[[ "${previous}" == - ]] && previous=""
+hw_suite="$(release_field "${suite}" 4)"
 [[ "${ROXORA_RELEASE}" =~ ^([0-9]{4})\.([0-9]{2})\.[0-9]+(~beta\.[0-9]+)?$ ]] ||
 	die "ROXORA_RELEASE '${ROXORA_RELEASE}' is not YYYY.MM.N or YYYY.MM.N~beta.N"
 epoch="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-01" +%s)"
@@ -98,16 +104,20 @@ takeover_paths="$(awk '!/^[[:space:]]*(#|$)/ { print $1 }' "${HERE}/takeover.lis
 # upgrader's known edits (see roxora-release.preinst).
 rewrites=""
 if [[ -n "${previous}" ]]; then
-	declare src shipped variants v
+	declare src from shipped variants v
 	for src in roxora armbian; do
+		# The suite that package names: the release's own for Roxora's
+		# repository, the Armbian release's for the hardware repository.
 		if [[ "${src}" == roxora ]]; then
-			shipped="$(sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${previous}/g" "${ROXORA_DIR}/apt/roxora.sources.in")"
+			from="${previous}"
+			shipped="$(sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${from}/g" "${ROXORA_DIR}/apt/roxora.sources.in")"
 		else
-			shipped="$(sed -e "s/@SUITE@/${previous}/g" "${ROXORA_DIR}/apt/armbian.sources.in")"
+			from="$(release_field "${previous}" 4)"
+			shipped="$(sed -e "s/@SUITE@/${from}/g" "${ROXORA_DIR}/apt/armbian.sources.in")"
 		fi
 		variants=""
-		for v in "${shipped}"$'\nEnabled: no' "${shipped//Suites: ${previous}/Suites: ${suite}}" \
-			"${shipped//Suites: ${previous}/Suites: ${suite}}"$'\nEnabled: no'; do
+		for v in "${shipped}"$'\nEnabled: no' "${shipped//Suites: ${from}/Suites: ${suite}}" \
+			"${shipped//Suites: ${from}/Suites: ${suite}}"$'\nEnabled: no'; do
 			variants+=" $(printf '%s\n' "${v}" | sha256sum | cut -d ' ' -f 1)"
 		done
 		[[ "${shipped}" != *"'"* ]] || die "apt/${src}.sources.in has a quote"
@@ -158,7 +168,7 @@ install -d "${pkg}/DEBIAN" "${pkg}/etc/apt/preferences.d" "${pkg}/etc/apt/source
 sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${ROXORA_DIR}/apt/roxora-hardware.pref.in" > "${pkg}/etc/apt/preferences.d/roxora-hardware.pref"
 sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${ROXORA_DIR}/apt/roxora.pref.in" > "${pkg}/etc/apt/preferences.d/roxora.pref"
 sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/apt/roxora.sources.in" > "${pkg}/etc/apt/sources.list.d/roxora.sources"
-sed -e "s/@SUITE@/${suite}/g" "${ROXORA_DIR}/apt/armbian.sources.in" > "${pkg}/etc/apt/sources.list.d/armbian.sources"
+sed -e "s/@SUITE@/${hw_suite}/g" "${ROXORA_DIR}/apt/armbian.sources.in" > "${pkg}/etc/apt/sources.list.d/armbian.sources"
 install -m 0644 "${ROXORA_DIR}/cloud-init/99-roxora.cfg" "${pkg}/etc/cloud/cloud.cfg.d/99-roxora.cfg"
 install -d "${pkg}/etc/update-manager/release-upgrades.d"
 sed -e "s|@ROXORA_URI@|${ROXORA_REPO_URI}|g" -e "s|@HW_URI@|$(sed -n 's/^URIs: //p' "${ROXORA_DIR}/apt/armbian.sources.in")|g" \

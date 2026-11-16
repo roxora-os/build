@@ -191,6 +191,10 @@ is_installed ubuntu-desktop-minimal && flavor=gnome-minimal
 is_installed ubuntu-desktop && flavor=gnome
 # shellcheck source=/dev/null
 codename="$(. "${R}/etc/os-release" && echo "${VERSION_CODENAME}")"
+# The Armbian release the hardware layer of this Ubuntu release comes with,
+# the suite of the hardware repository (userpatches/roxora/releases.conf).
+hw_suite="$(awk -v r="${codename}" '!/^[[:space:]]*(#|$)/ && $1 == r { print $4 }' "${LISTS}/releases.conf")"
+[[ -n "${hw_suite}" ]] || die "Ubuntu ${codename} is not in userpatches/roxora/releases.conf"
 # The server cloud image is the reference for every flavor. A desktop image
 # adds Ubuntu's preinstalled desktop image, and the full desktop Ubuntu's
 # live desktop image too (see reference/README.md).
@@ -272,7 +276,7 @@ rx_check /etc/apt/preferences.d/roxora-hardware.pref "${expected_pin}" roxora-re
 rx_check /etc/update-manager/release-upgrades.d/roxora.cfg \
 	"$(sed -e "s|@ROXORA_URI@|${ROXORA_REPO_URI}|g" -e "s|@HW_URI@|$(sed -n 's/^URIs: //p' "${LISTS}/apt/armbian.sources.in")|g" "${LISTS}/apt/release-upgrades.cfg.in")" roxora-release
 [[ "${HW_REPO}" == armbian ]] &&
-	rx_check /etc/apt/sources.list.d/armbian.sources "$(sed -e "s/@SUITE@/${codename}/g" "${LISTS}/apt/armbian.sources.in")" roxora-release
+	rx_check /etc/apt/sources.list.d/armbian.sources "$(sed -e "s/@SUITE@/${hw_suite}/g" "${LISTS}/apt/armbian.sources.in")" roxora-release
 mkdir -p "${work}/gnupg"
 chmod 700 "${work}/gnupg"
 gpg --homedir "${work}/gnupg" --batch --dearmor < "${LISTS}/apt/roxora-archive-keyring.asc" > "${work}/roxora-archive-keyring.gpg" 2> /dev/null

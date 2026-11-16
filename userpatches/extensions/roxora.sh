@@ -30,6 +30,21 @@ source "${ROXORA_DIR}/hardware-repo.conf"
 # shellcheck source=userpatches/roxora/roxora-repo.conf
 source "${ROXORA_DIR}/roxora-repo.conf"
 
+# A column of releases.conf for the image's Ubuntu release (2 VERSION,
+# 3 PREVIOUS, 4 ARMBIAN).
+function roxora_release_field() {
+	declare value
+	value="$(awk -v r="${RELEASE}" -v c="${1}" '!/^[[:space:]]*(#|$)/ && $1 == r { print $c }' "${ROXORA_DIR}/releases.conf")"
+	[[ -n "${value}" ]] || exit_with_error "Roxora: ${RELEASE} is not in userpatches/roxora/releases.conf"
+	echo "${value}"
+}
+
+# The Armbian release the image's hardware layer comes with: the suite of
+# the hardware repository (releases.conf).
+function roxora_hw_suite() {
+	roxora_release_field 4
+}
+
 # The apt pin for the hardware repository, from its template.
 function roxora_render_pin() {
 	sed -e "s/@ORIGIN@/${HW_REPO_ORIGIN}/g" "${ROXORA_DIR}/apt/roxora-hardware.pref.in"
@@ -74,6 +89,8 @@ function extension_prepare_config__roxora() {
 		"${ROXORA_DIR}/boards.conf"; then
 		exit_with_error "Roxora: ${BOARD} ${BRANCH} ${RELEASE} ${ROXORA_FLAVOR} is not in boards.conf"
 	fi
+	# Every Ubuntu release of boards.conf is in releases.conf.
+	roxora_release_field 4 > /dev/null
 	# Armbian's own desktop support (its desktop packages and settings) is
 	# never used: a desktop flavor is Ubuntu's desktop on the same base.
 	[[ "${BUILD_MINIMAL}" == "yes" && "${BUILD_DESKTOP}" == "no" ]] ||
@@ -227,7 +244,7 @@ function custom_apt_repo__roxora_pin_armbian() {
 	cat > "${SDCARD}/etc/apt/sources.list.d/roxora-hardware.sources" <<- SOURCES
 		Types: deb
 		URIs: ${HW_REPO_URI}
-		Suites: ${HW_REPO_SUITES:-${RELEASE}}
+		Suites: ${HW_REPO_SUITES:-$(roxora_hw_suite)}
 		Components: ${HW_REPO_COMPONENTS}
 		Signed-By: /usr/share/keyrings/${HW_REPO_KEY}
 	SOURCES
@@ -250,7 +267,7 @@ function custom_apt_repo__roxora_repo() {
 	sed -e "s|@URI@|${ROXORA_REPO_URI}|g" -e "s/@SUITE@/${RELEASE}/g" "${ROXORA_DIR}/apt/roxora.sources.in" > "${SDCARD}/etc/apt/sources.list.d/roxora.sources"
 	sed -e "s/@HOST@/${ROXORA_REPO_HOST}/g" "${ROXORA_DIR}/apt/roxora.pref.in" > "${SDCARD}/etc/apt/preferences.d/roxora.pref"
 	if [[ "${HW_REPO}" == armbian ]] &&
-		! cmp -s <(sed -e "s/@SUITE@/${RELEASE}/g" "${ROXORA_DIR}/apt/armbian.sources.in") "${SDCARD}/etc/apt/sources.list.d/armbian.sources"; then
+		! cmp -s <(sed -e "s/@SUITE@/$(roxora_hw_suite)/g" "${ROXORA_DIR}/apt/armbian.sources.in") "${SDCARD}/etc/apt/sources.list.d/armbian.sources"; then
 		exit_with_error "Roxora: Armbian wrote another armbian.sources than roxora-release ships (apt/armbian.sources.in)" \
 			"$(cat "${SDCARD}/etc/apt/sources.list.d/armbian.sources" 2> /dev/null)"
 	fi
