@@ -10,3 +10,10 @@ network-manager-l10n    recommended by network-manager on 26.04; the release upg
 grub-common             UEFI image: needed by os-prober and grub2-common from the 24.04 image, which the upgrade keeps; a new 26.04 image has neither (as Ubuntu's 26.04 server image)
 gnome-terminal          desktops: 24.04's terminal; 26.04's is Ptyxis, which the upgrade installs too, and Ubuntu's upgrade keeps gnome-terminal
 gnome-terminal-data     data of gnome-terminal (above)
+
+# Ubuntu 26.04 to 26.10 (do-release-upgrade)
+dbus                    26.04's D-Bus system bus; 26.10 has dbus-broker, which the upgrade installs too; marked automatic and kept, as dbus-user-session, installed, accepts dbus-daemon
+dbus-daemon             part of 26.04's D-Bus (above); dbus-user-session and dbus need it
+libssl3t64              26.04's OpenSSL library (26.10 has libssl4), marked manually installed in the 26.04 image, so the upgrade keeps it; no installed package needs it
+openssh-client-gssapi   26.10 splits GSSAPI out of openssh-client; the upgrade installs this package, which provides openssh-client with GSSAPI as 26.04's had it, marked manual; a new 26.10 image has openssh-client
+selinux-utils           recommended by libselinux1 on 26.10; the release upgrade installs new recommended packages, the image build does not
