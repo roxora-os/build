@@ -1,7 +1,8 @@
 # Upgrades published images of an earlier release to this commit's release
 # the way docs/install.md says (verify/upgrade-test.sh), then checks the
 # result with verify-image.sh --upgraded. One command line image on a board,
-# one on the UEFI image, one desktop.
+# one on the UEFI image, one desktop, from the release before the apt
+# repository and from the first release with it.
 name: Upgrade
 
 on:
@@ -35,11 +36,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { board: radxa-rock-4d, branch: edge, release: noble, flavor: cli, suffix: "" }
-          - { board: generic-rk3576-uefi, branch: edge, release: resolute, flavor: cli, suffix: "" }
-          - { board: radxa-rock-4d, branch: edge, release: noble, flavor: gnome-minimal, suffix: "-gnome-minimal" }
+          # From 2026.11.4, before the repository: joining it.
+          - { from: v2026.11.4, board: radxa-rock-4d, branch: edge, release: noble, flavor: cli, suffix: "" }
+          - { from: v2026.11.4, board: generic-rk3576-uefi, branch: edge, release: resolute, flavor: cli, suffix: "" }
+          - { from: v2026.11.4, board: radxa-rock-4d, branch: edge, release: noble, flavor: gnome-minimal, suffix: "-gnome-minimal" }
+          # From 2026.11.5, with the release packages: updating them.
+          - { from: v2026.11.5, board: generic-rk3576-uefi, branch: edge, release: resolute, flavor: cli, suffix: "" }
+          - { from: v2026.11.5, board: radxa-rock-4d, branch: edge, release: resolute, flavor: gnome-minimal, suffix: "-gnome-minimal" }
     env:
-      FROM: ${{ inputs.from || 'v2026.11.4' }}
+      FROM: ${{ inputs.from || matrix.from }}
       BOARD: ${{ matrix.board }}
       BRANCH: ${{ matrix.branch }}
       RELEASE: ${{ matrix.release }}
