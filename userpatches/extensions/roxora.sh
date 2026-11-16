@@ -317,6 +317,30 @@ else
 	roxora_missing_functions+=(create_sources_list_and_deploy_repo_key)
 fi
 
+# install_distribution_agnostic runs, right after the post_family_tweaks
+# hooks, "chown root:messagebus" and "chmod u+s" on
+# /usr/lib/dbus-1.0/dbus-daemon-launch-helper, whether it exists or not.
+# Ubuntu 26.10 has dbus-broker and no dbus-daemon, so the file is not there
+# and the build stopped. An empty stand-in lets those two commands pass; it
+# is removed again in the first customize_image hook, and so is its
+# directory if it was made for it.
+declare -g ROXORA_DBUS_STANDIN=""
+function post_family_tweaks__roxora_zz_dbus_helper_standin() {
+	declare helper="${SDCARD}/usr/lib/dbus-1.0/dbus-daemon-launch-helper"
+	[[ -e "${helper}" || -L "${helper}" ]] && return 0
+	display_alert "Roxora" "no dbus-daemon-launch-helper (no dbus-daemon): empty stand-in for armbian/build's chown" "info"
+	ROXORA_DBUS_STANDIN="file"
+	[[ -d "${SDCARD}/usr/lib/dbus-1.0" ]] || ROXORA_DBUS_STANDIN="dir"
+	install -D -m 0755 /dev/null "${helper}"
+}
+function post_customize_image__roxora_0_dbus_helper_standin() {
+	[[ -n "${ROXORA_DBUS_STANDIN}" ]] || return 0
+	display_alert "Roxora" "removing the dbus-daemon-launch-helper stand-in" "info"
+	rm -f "${SDCARD}/usr/lib/dbus-1.0/dbus-daemon-launch-helper"
+	[[ "${ROXORA_DBUS_STANDIN}" == dir ]] && rmdir "${SDCARD}/usr/lib/dbus-1.0"
+	return 0
+}
+
 function custom_apt_repo__roxora_0_release_sources() {
 	roxora_foreign_release || return 0
 	declare hw_suite
