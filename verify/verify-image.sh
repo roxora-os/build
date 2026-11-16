@@ -1052,9 +1052,11 @@ else
 	seed_release="${codename}"
 	seed_words=""
 	if [[ "${upgraded}" == yes && -s "${R}/var/lib/snapd/seed/seed.yaml" ]]; then
+		# The release whose snaps are all seeded in their channels: the
+		# channels tell releases with the same snaps apart (26.04 and 26.10).
 		for r in $(list "${LISTS}/desktop/snaps.list" | awk '{ print $1 }' | sort -u); do
-			if ! list "${LISTS}/desktop/snaps.list" | awk -v r="${r}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3 }' |
-				grep -vxFf <(awk '/^- name:/ { print $3 }' "${R}/var/lib/snapd/seed/seed.yaml") | grep -q .; then
+			if ! list "${LISTS}/desktop/snaps.list" | awk -v r="${r}" -v f="${flavor}" '$1 == r && ($2 == "gnome-minimal" || $2 == f) { print $3, $4 }' |
+				grep -vxFf <(awk '/^- name:/ { n = $3 } /^[[:space:]]+channel:/ { print n, $2 }' "${R}/var/lib/snapd/seed/seed.yaml") | grep -q .; then
 				seed_release="${r}"
 				break
 			fi
