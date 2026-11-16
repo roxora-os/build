@@ -34,6 +34,7 @@ source "${ROXORA_DIR}/roxora-repo.conf"
 # 3 PREVIOUS, 4 ARMBIAN).
 function roxora_release_field() {
 	declare value
+	# shellcheck disable=SC2153 # RELEASE is armbian/build's
 	value="$(awk -v r="${RELEASE}" -v c="${1}" '!/^[[:space:]]*(#|$)/ && $1 == r { print $c }' "${ROXORA_DIR}/releases.conf")"
 	[[ -n "${value}" ]] || exit_with_error "Roxora: ${RELEASE} is not in userpatches/roxora/releases.conf"
 	echo "${value}"
@@ -91,6 +92,16 @@ function extension_prepare_config__roxora() {
 	fi
 	# Every Ubuntu release of boards.conf is in releases.conf.
 	roxora_release_field 4 > /dev/null
+	if [[ ${#roxora_missing_functions[@]} -gt 0 ]]; then
+		exit_with_error "Roxora: armbian/build no longer defines ${roxora_missing_functions[*]}; review the release overrides"
+	fi
+	if roxora_foreign_release; then
+		[[ -f "${SRC}/config/distributions/${RELEASE}/support" ]] ||
+			exit_with_error "Roxora: ${RELEASE} needs Roxora's release definition in config/distributions; build with build.sh"
+		display_alert "Roxora" "Ubuntu ${RELEASE} (not defined by armbian/build), hardware layer of Armbian's $(roxora_hw_suite)" "info"
+		# do_extra_configuration takes any codename it does not know for Debian.
+		declare -g DISTRIBUTION="Ubuntu"
+	fi
 	# Armbian's own desktop support (its desktop packages and settings) is
 	# never used: a desktop flavor is Ubuntu's desktop on the same base.
 	[[ "${BUILD_MINIMAL}" == "yes" && "${BUILD_DESKTOP}" == "no" ]] ||
@@ -220,6 +231,64 @@ function custom_apt_repo__add_armbian-github-repo() {
 }
 function post_armbian_repo_customize_image__install_armbian-config() {
 	display_alert "Roxora" "not installing armbian-config" "info"
+}
+
+# --- Ubuntu releases that armbian/build does not define ----------------------
+#
+# For a release whose ARMBIAN column in releases.conf names another release
+# (Ubuntu 26.10, stonking, follows Armbian's resolute), build.sh puts
+# Roxora's release definition (userpatches/roxora/distributions/<release>)
+# into the checkout's config/distributions/, which is what armbian/build
+# reads for the release's support status and architectures. What armbian/build
+# decides from a fixed list of Ubuntu codenames is done here instead:
+# - the distribution is Ubuntu (do_extra_configuration; set again in
+#   extension_prepare_config__roxora, which runs right after);
+# - the Ubuntu archive key for mmdebstrap is the one fetch_distro_keyring
+#   fetches for the Armbian release (wrapped below);
+# - the Ubuntu apt source, which create_sources_list_and_deploy_repo_key
+#   writes only for the codenames it knows, and the hardware repository's
+#   suite (custom_apt_repo__roxora_0_release_sources).
+function roxora_foreign_release() {
+	[[ "$(roxora_hw_suite)" != "${RELEASE}" ]]
+}
+
+roxora_missing_functions=()
+if declare -F fetch_distro_keyring > /dev/null; then
+	eval "$(declare -f fetch_distro_keyring | sed '1s/^fetch_distro_keyring /roxora_armbian_fetch_distro_keyring /')"
+	function fetch_distro_keyring() {
+		declare release="${1}"
+		if [[ "${release}" == "${RELEASE}" ]] && roxora_foreign_release; then
+			release="$(roxora_hw_suite)"
+			display_alert "Roxora" "Ubuntu archive key for ${RELEASE}: the one armbian/build fetches for ${release}" "info"
+		fi
+		roxora_armbian_fetch_distro_keyring "${release}"
+	}
+else
+	roxora_missing_functions+=(fetch_distro_keyring)
+fi
+
+function custom_apt_repo__roxora_0_release_sources() {
+	roxora_foreign_release || return 0
+	declare hw_suite
+	hw_suite="$(roxora_hw_suite)"
+	display_alert "Roxora" "Ubuntu ${RELEASE}: Ubuntu's apt source, hardware repository suite ${hw_suite} (${CUSTOM_REPO_WHEN})" "info"
+	# The source armbian/build writes for the Ubuntu releases it knows.
+	cat > "${SDCARD}/etc/apt/sources.list.d/ubuntu.sources" <<- SOURCES
+		Types: deb
+		URIs: http://${UBUNTU_MIRROR}
+		Suites: ${RELEASE} ${RELEASE}-security ${RELEASE}-updates ${RELEASE}-backports
+		Components: main restricted universe multiverse
+		Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+	SOURCES
+	# Armbian's repository has no suite for the release: the hardware layer
+	# comes from the Armbian release's suite, and so do the -utils and
+	# -desktop components the source list names (pinned to -1 below).
+	declare f
+	for f in "${SDCARD}"/etc/apt/sources.list.d/armbian.sources "${SDCARD}"/etc/apt/sources.list.d/armbian.sources.disabled; do
+		[[ -f "${f}" ]] || continue
+		sed -i -e "s/^Suites: ${RELEASE}\$/Suites: ${hw_suite}/" \
+			-e "/^Components:/s/ ${RELEASE}-/ ${hw_suite}-/g" "${f}"
+	done
 }
 
 # Pin the hardware repository. Its source list stays, because kernel, DTB,

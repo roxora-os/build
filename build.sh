@@ -103,6 +103,34 @@ rm -rf "${CHECKOUT}/userpatches"
 cp -a "${ROOT}/userpatches" "${CHECKOUT}/userpatches"
 cp "${ROOT}/boards.conf" "${CHECKOUT}/userpatches/roxora/boards.conf"
 
+# An Ubuntu release that Armbian's build does not define: its ARMBIAN
+# column in userpatches/roxora/releases.conf names another release, and
+# userpatches/roxora/distributions/<release> is the release definition
+# Armbian's build reads from config/distributions/. It is put into the
+# checkout for a build of that release only, and the checkout's
+# .git/info/exclude names it, so it is no local change of the checkout.
+armbian_release="$(awk -v r="${RELEASE}" '!/^[[:space:]]*(#|$)/ && $1 == r { print $4 }' "${ROOT}/userpatches/roxora/releases.conf")"
+[[ -n "${armbian_release}" ]] || die "${RELEASE} is not in userpatches/roxora/releases.conf"
+for def in "${ROOT}"/userpatches/roxora/distributions/*/; do
+	[[ -d "${def}" ]] || continue
+	def="$(basename "${def}")"
+	if git -C "${CHECKOUT}" ls-files --error-unmatch "config/distributions/${def}" > /dev/null 2>&1; then
+		die "armbian/build defines ${def} itself now; remove userpatches/roxora/distributions/${def} and set ARMBIAN to ${def} in releases.conf"
+	fi
+	mkdir -p "${CHECKOUT}/.git/info"
+	grep -qxF "/config/distributions/${def}/" "${CHECKOUT}/.git/info/exclude" 2> /dev/null ||
+		echo "/config/distributions/${def}/" >> "${CHECKOUT}/.git/info/exclude"
+	rm -rf "${CHECKOUT}/config/distributions/${def}"
+done
+if [[ "${armbian_release}" != "${RELEASE}" ]]; then
+	[[ -d "${ROOT}/userpatches/roxora/distributions/${RELEASE}" ]] ||
+		die "${RELEASE} follows Armbian's ${armbian_release} (releases.conf), but userpatches/roxora/distributions/${RELEASE} is missing"
+	cp -a "${ROOT}/userpatches/roxora/distributions/${RELEASE}" "${CHECKOUT}/config/distributions/${RELEASE}"
+	echo "build.sh: Ubuntu ${RELEASE} is not defined by armbian/build; using Roxora's definition, hardware packages from Armbian's ${armbian_release}"
+elif [[ -d "${ROOT}/userpatches/roxora/distributions/${RELEASE}" ]]; then
+	die "userpatches/roxora/distributions/${RELEASE} is there, but releases.conf says Armbian defines ${RELEASE}"
+fi
+
 stamp="$(mktemp)"
 trap 'rm -f "${stamp}"' EXIT
 
