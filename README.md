@@ -72,7 +72,6 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | vendor | cli, gnome-minimal, gnome | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
-| Radxa ROCK 4D | RK3576 | 26.10 (stonking) | vendor | cli, gnome-minimal, gnome | ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.10 (stonking) | vendor | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | edge | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | ci-only |
@@ -86,6 +85,10 @@ nine months, until July 2027. Armbian has no 26.10 suite, so its images take
 the kernel, device tree, U-Boot and firmware from Armbian's 26.04 suite,
 the same packages as the 26.04 images (see
 [architecture.md](docs/architecture.md#ubuntu-releases-armbian-does-not-have)).
+There is no 26.10 image of the ROCK 4D with the vendor kernel: its Wi-Fi
+driver is built against the kernel headers in the image, and the build
+tools of the 6.1 vendor kernel's headers do not compile against Ubuntu
+26.10's C library headers (`__u128` in `asm/sigcontext.h`).
 
 The `generic-rk3576-uefi` image is for any RK3576 board that runs UEFI firmware,
 such as [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576). It carries
