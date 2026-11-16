@@ -137,3 +137,4 @@ libnm0                           dependency of network-manager
 libndp0                          dependency of network-manager
 libteamdctl0                     dependency of network-manager
 libbluetooth3                    dependency of network-manager
+network-manager-tui              nmtui on command line images (26.10: split out of network-manager, which only recommends it; roxora-cli depends on it there)

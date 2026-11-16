@@ -209,8 +209,11 @@ for flavor in "${flavors[@]}"; do
 		cli)
 			name=roxora-cli
 			summary="command line image"
-			# Wi-Fi with nmtui and nmcli, from 2026.11.5 on.
+			# Wi-Fi with nmtui and nmcli, from 2026.11.5 on. From Ubuntu
+			# 26.10 nmtui is in a package of its own, which network-manager
+			# only recommends.
 			depends="network-manager"
+			dpkg --compare-versions "${ubuntu}" lt 26.10 || depends+=", network-manager-tui"
 			;;
 		gnome-minimal)
 			name=roxora-desktop-gnome-minimal
