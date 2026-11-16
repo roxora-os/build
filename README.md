@@ -66,14 +66,26 @@ From [`boards.conf`](boards.conf):
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | edge | cli, gnome-minimal, gnome | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | cli: hardware-tested; desktop: ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | ci-only |
+| Radxa ROCK 4D | RK3576 | 26.10 (stonking) | edge | cli, gnome-minimal, gnome | ci-only |
+| ArmSoM CM5-IO | RK3576 | 26.10 (stonking) | edge | cli, gnome-minimal, gnome | ci-only |
 | Radxa ROCK 4D | RK3576 | 24.04 (noble) | vendor | cli, gnome-minimal, gnome | ci-only |
 | ArmSoM CM5-IO | RK3576 | 24.04 (noble) | vendor | cli, gnome-minimal, gnome | ci-only |
 | Radxa ROCK 4D | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
 | ArmSoM CM5-IO | RK3576 | 26.04 (resolute) | vendor | cli, gnome-minimal, gnome | ci-only |
+| Radxa ROCK 4D | RK3576 | 26.10 (stonking) | vendor | cli, gnome-minimal, gnome | ci-only |
+| ArmSoM CM5-IO | RK3576 | 26.10 (stonking) | vendor | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | edge | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | edge | cli, gnome-minimal, gnome | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.10 (stonking) | edge | cli, gnome-minimal, gnome | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 24.04 (noble) | vendor | cli | ci-only |
 | RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.04 (resolute) | vendor | cli | ci-only |
+| RK3576 boards with UEFI firmware (`generic-rk3576-uefi`) | RK3576 | 26.10 (stonking) | vendor | cli | ci-only |
+
+Ubuntu 26.10 is not a long term support release: Ubuntu supports it for
+nine months, until July 2027. Armbian has no 26.10 suite, so its images take
+the kernel, device tree, U-Boot and firmware from Armbian's 26.04 suite,
+the same packages as the 26.04 images (see
+[architecture.md](docs/architecture.md#ubuntu-releases-armbian-does-not-have)).
 
 The `generic-rk3576-uefi` image is for any RK3576 board that runs UEFI firmware,
 such as [edk2-rk3576](https://github.com/gahingwoo/edk2-rk3576). It carries

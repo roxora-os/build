@@ -154,11 +154,54 @@ The BSP package itself (`armbian-bsp-cli-*`) is not in the hardware patterns.
 Roxora builds its own version of it, and an update from Armbian's repository
 would bring back the removed files, so it is never upgraded from there.
 
+### Ubuntu releases Armbian does not have
+
+[`releases.conf`](../userpatches/roxora/releases.conf) lists the Ubuntu
+releases Roxora builds, with their version, the release a release upgrade
+comes from, and the Armbian release whose hardware layer the image has. The
+last is the suite of the hardware repository. For 24.04 and 26.04 it is the
+release itself. Ubuntu 26.10 (`stonking`) is newer than armbian/build at
+[`armbian.ref`](../armbian.ref), and `apt.armbian.com` has no suite for it,
+so a 26.10 image has the hardware layer of Armbian's `resolute`: the same
+kernel, device tree, U-Boot and firmware packages as the 26.04 image, which
+do not depend on the Ubuntu release. Its `armbian.sources` is
+
+    Types: deb
+    URIs: http://apt.armbian.com
+    Suites: resolute
+    Components: main resolute-utils resolute-desktop
+
+with the same pin, so that only the hardware packages come from there.
+
+armbian/build is not changed for this. It reads a release's definition
+from `config/distributions/<release>/` (support status, architectures), and
+decides a few things from fixed lists of Ubuntu codenames. For a release
+whose Armbian release is another one:
+
+- `build.sh` copies Roxora's definition,
+  [`userpatches/roxora/distributions/stonking/`](../userpatches/roxora/distributions/stonking),
+  into the checkout's `config/distributions/` for that build only, and
+  names it in the checkout's `.git/info/exclude`. Once armbian/build defines
+  the release itself, `build.sh` stops and says that Roxora's definition is
+  to be removed.
+- The extension sets the distribution to Ubuntu, fetches the archive key
+  for mmdebstrap as armbian/build does for the Armbian release (a wrapper
+  around `fetch_distro_keyring`), and writes `ubuntu.sources` as
+  armbian/build writes it for the releases it knows, with the release's own
+  suites (`stonking`, `stonking-updates`, `stonking-security`,
+  `stonking-backports`). It changes the suite and components of
+  `armbian.sources` to the Armbian release's from the root file system
+  stage on.
+
+Armbian's package lists for the root file system are those it uses for
+every release (`config/cli/_all_distributions`); resolute has only a list
+for desktop builds, which Roxora does not use.
+
 ## Roxora's apt repository
 
 [roxora-os/apt](https://github.com/roxora-os/apt) publishes Roxora's own
 packages at https://roxora-os.github.io/apt, one suite per Ubuntu release
-(`noble`, `resolute`) with one component, `main`. Its Release files are
+(`noble`, `resolute`, `stonking`) with one component, `main`. Its Release files are
 signed with Roxora's key (Ed25519, fingerprint
 `07353CCFAF21725418E3CE4798FC2BE6A9A8952D`). Every image has:
 
@@ -319,6 +362,25 @@ snap steps (on a running desktop it moves the snaps to their 26.04 channels
 through snapd, as on Ubuntu; in a desktop image that has not booted the
 24.04 seed stays and snapd installs it at the first boot), and nothing
 reboots into 26.04 there.
+
+From 26.04 to 26.10 ([install.md](install.md#from-ubuntu-2604-to-2610)) it
+is the same, with two differences:
+
+- 26.04 is an LTS release, and its upgrader offers only the next LTS
+  release unless `Prompt=normal` is set in
+  `/etc/update-manager/release-upgrades`; install.md's commands set it.
+- The hardware repository keeps the 26.04 suite (see
+  [Ubuntu releases Armbian does not have](#ubuntu-releases-armbian-does-not-have)).
+  The upgrader moves `armbian.sources` to `stonking`, finds no Release file
+  there and turns the source off (`disabled (no Release file)` in its log);
+  nothing of the hardware layer is removed meanwhile. The 26.10
+  `roxora-release` ships the same `armbian.sources` as the 26.04 one,
+  recognises the upgrader's edit, writes the file back, and so the source
+  is on again, with the `resolute` suite, without a question from dpkg.
+
+The same workflow runs the 26.04 commands on the previous release's 26.04
+ROCK 4D images (command line, GNOME minimal) and RK3576 UEFI command line
+image, and checks the result as a 26.10 system.
 
 ## Boot
 

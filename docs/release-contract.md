@@ -25,8 +25,8 @@ and one package per flavor (`roxora-cli`, `roxora-desktop-gnome-minimal`,
 [architecture.md](architecture.md#roxoras-apt-repository)).
 
 - Their version is the release version, `+` and the Ubuntu version:
-  `2026.11.5+24.04`, `2026.11.5+26.04`. A beta would be `2026.12.0~beta.1+24.04`,
-  which sorts before the release.
+  `2026.11.5+24.04`, `2026.11.5+26.04`, and `+26.10` for Ubuntu 26.10. A
+  beta would be `2026.12.0~beta.1+24.04`, which sorts before the release.
 - `ROXORA_RELEASE` in `userpatches/roxora/roxora-repo.conf` is that version
   without the Ubuntu part. `release.yml` stops unless it is the tag's
   version, so it is raised before a release is tagged, in the commit that
@@ -42,7 +42,7 @@ and one package per flavor (`roxora-cli`, `roxora-desktop-gnome-minimal`,
 | --- | --- |
 | `ROXORA_VERSION` | Roxora release, `YYYY.MM.N`. |
 | `ROXORA_FLAVOR` | `cli`, `gnome-minimal` or `gnome`. |
-| `ROXORA_UBUNTU_CODENAME` | Ubuntu release, `noble` or `resolute`. |
+| `ROXORA_UBUNTU_CODENAME` | Ubuntu release, `noble`, `resolute` or `stonking`. |
 | `ROXORA_PACKAGE` | The flavor package that wrote the file. |
 
 A system that has no `/etc/roxora-release` runs an image up to 2026.11.4
@@ -196,7 +196,7 @@ the field is left out and not pointed at a file the release does not hold.
 | `images[].vendor` | string | Board maker, `VENDOR` column of `boards.conf`; `Generic` for a UEFI image. Catalogs from releases before 2026.11.1 do not have it; consumers then take the first word of `board_name`. |
 | `images[].soc` | string | SoC, `SOC` column of `boards.conf`. |
 | `images[].release` | string | Ubuntu codename. |
-| `images[].ubuntu_version` | string | Ubuntu version number. |
+| `images[].ubuntu_version` | string | Ubuntu version number (`VERSION` in `userpatches/roxora/releases.conf`). Long term support releases are those of April in even years (`24.04`, `26.04`); others, such as `26.10`, are supported for nine months. |
 | `images[].branch` | string | Armbian kernel branch. |
 | `images[].flavor` | string, optional | `cli` for a command line image, `gnome-minimal` or `gnome` for an image with Ubuntu's GNOME desktop (`ubuntu-desktop-minimal`, `ubuntu-desktop`); `FLAVOR` column of `boards.conf`. Catalogs from releases before the desktop images do not have it; consumers then take `cli`. More flavors may be added; a consumer shows one it does not know by this name. Board, release, branch and flavor together name one image of a release. |
 | `images[].kernel` | string | Kernel version in the image (`uname -r` without the branch suffix). |
