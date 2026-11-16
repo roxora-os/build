@@ -271,7 +271,7 @@ new Roxora release comes out, its release packages reach the repository
 within the hour, and the command above brings them: the system then has
 what that release changed in its image, as far as packages can carry it.
 That is new packages for the flavor (2026.11.5 adds NetworkManager to the
-command line image), new versions of hwtool and the wallpapers, Roxora's apt
+command line image, 2026.11.6 Roxora Imager to the desktop images), new versions of hwtool and the wallpapers, Roxora's apt
 sources and pins and cloud-init's settings, and the steps a release needs
 that apt cannot express, which the packages run once. `cat /etc/roxora-release`
 shows the release and the flavor.

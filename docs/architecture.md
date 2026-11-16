@@ -604,9 +604,9 @@ Roxora's own parts are packages from
 every flavor, whose settings override makes Facet the default wallpaper,
 `roxora-hwtool-gtk`, the GTK app of hwtool, `roxora-imager`, Roxora Imager,
 and the flavor's release package (`roxora-desktop-gnome-minimal` or
-`roxora-desktop-gnome`). The release packages of 2026.11.5 do not depend on
-`roxora-imager` yet, so a system upgraded from an earlier release gets it
-only with `sudo apt install roxora-imager`.
+`roxora-desktop-gnome`). The desktop release packages depend on
+`roxora-imager` from 2026.11.6 on, so a system upgraded from an earlier
+release gets it with the update as well.
 
 The boot is not changed: no boot splash is set up, so kernel messages show
 until GDM starts.

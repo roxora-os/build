@@ -216,15 +216,17 @@ for flavor in "${flavors[@]}"; do
 			dpkg --compare-versions "${ubuntu}" lt 26.10 || depends+=", network-manager-tui"
 			;;
 		gnome-minimal)
+			# Roxora Imager from 2026.11.6 on, so a system upgraded from
+			# an earlier release gets it as a new image has it.
 			name=roxora-desktop-gnome-minimal
 			summary="GNOME desktop, ubuntu-desktop-minimal"
-			depends="roxora-hwtool-gtk (>= ${HWTOOL_VERSION}), network-manager"
+			depends="roxora-hwtool-gtk (>= ${HWTOOL_VERSION}), roxora-imager (>= ${IMAGER_VERSION}), network-manager"
 			recommends="ubuntu-desktop-minimal"
 			;;
 		gnome)
 			name=roxora-desktop-gnome
 			summary="GNOME desktop, ubuntu-desktop"
-			depends="roxora-hwtool-gtk (>= ${HWTOOL_VERSION}), network-manager"
+			depends="roxora-hwtool-gtk (>= ${HWTOOL_VERSION}), roxora-imager (>= ${IMAGER_VERSION}), network-manager"
 			recommends="ubuntu-desktop"
 			;;
 		*) die "unknown flavor '${flavor}' (cli, gnome-minimal, gnome)" ;;
