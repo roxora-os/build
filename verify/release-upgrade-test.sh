@@ -208,7 +208,8 @@ declare -i status=0
 	in_chroot dpkg --verify 2>&1 || true
 	in_chroot ls -la /etc/apparmor.d/disable 2>&1 || true
 	echo "== what keeps the packages a new ${to} image does not have"
-	for p in gcc-14-base network-manager-l10n grub-common gnome-terminal gnome-terminal-data systemd-timesyncd; do
+	for p in gcc-14-base network-manager-l10n grub-common gnome-terminal gnome-terminal-data systemd-timesyncd \
+		dbus dbus-daemon libssl3t64 network-manager-tui openssh-client-gssapi selinux-utils; do
 		in_chroot dpkg-query -W "${p}" > /dev/null 2>&1 || continue
 		echo "--- ${p}: $(in_chroot apt-mark showauto "${p}" | grep -q . && echo automatic || echo manual), installed reverse dependencies:"
 		in_chroot apt-cache rdepends --installed --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances "${p}" 2>&1 | tail -n +3 | head -10
