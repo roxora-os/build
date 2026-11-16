@@ -49,8 +49,16 @@ restore_rewrite() {
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
 @TAKEOVER@
 fi
+# Only in a release upgrade: when the version replaced is the previous
+# Ubuntu release's package (2026.11.5+24.04 by 2026.11.6+26.04). In an
+# update within one Ubuntu release the source list as it should be is the
+# same as such an edit, and is left alone.
 if [ "$1" = upgrade ]; then
+	case "$2" in
+	*+@PREVIOUS_UBUNTU@)
 @REWRITES@
+		;;
+	esac
 fi
 
 exit 0

@@ -174,7 +174,11 @@ install -d "${pkg}/etc/update-manager/release-upgrades.d"
 sed -e "s|@ROXORA_URI@|${ROXORA_REPO_URI}|g" -e "s|@HW_URI@|$(sed -n 's/^URIs: //p' "${ROXORA_DIR}/apt/armbian.sources.in")|g" \
 	"${ROXORA_DIR}/apt/release-upgrades.cfg.in" > "${pkg}/etc/update-manager/release-upgrades.d/roxora.cfg"
 write_copyright "${pkg}" roxora-release
-awk -v t="${takeover}" -v r="${rewrites:-$'\t:\n'}" '$0 == "@TAKEOVER@" { print t; next } $0 == "@REWRITES@" { printf "%s", r; next } { print }' "${HERE}/roxora-release.preinst" > "${pkg}/DEBIAN/preinst"
+# The Ubuntu version of the previous release, whose package a release
+# upgrade replaces ("none" where there is none: no version ends so).
+previous_ubuntu=none
+[[ -z "${previous}" ]] || previous_ubuntu="$(release_field "${previous}" 2)"
+awk -v t="${takeover}" -v r="${rewrites:-$'\t:\n'}" -v p="${previous_ubuntu}" '$0 == "@TAKEOVER@" { print t; next } $0 == "@REWRITES@" { printf "%s", r; next } { gsub(/@PREVIOUS_UBUNTU@/, p); print }' "${HERE}/roxora-release.preinst" > "${pkg}/DEBIAN/preinst"
 for script in postinst postrm; do
 	sed -e "s|@TAKEOVER_PATHS@|${takeover_paths}|" "${HERE}/roxora-release.${script}" > "${pkg}/DEBIAN/${script}"
 done
