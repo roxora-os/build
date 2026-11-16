@@ -267,6 +267,37 @@ else
 	roxora_missing_functions+=(fetch_distro_keyring)
 fi
 
+# armbian/build makes its armbian-base-files package (not installed in
+# Roxora's images, KEEP_ORIGINAL_OS_RELEASE=yes, but built for every image)
+# from the release's base-files, which it finds in a list that Armbian
+# publishes for the releases it knows. For another release, read the
+# package's file name from the Ubuntu archive's index instead, and set what
+# the original sets: found_package_filename, found_package_down_url and
+# found_package_version.
+if declare -F apt_find_upstream_package_version_and_download_url > /dev/null; then
+	eval "$(declare -f apt_find_upstream_package_version_and_download_url | sed '1s/^apt_find_upstream_package_version_and_download_url /roxora_armbian_apt_find_upstream_package_version_and_download_url /')"
+	function apt_find_upstream_package_version_and_download_url() {
+		if ! roxora_foreign_release; then
+			roxora_armbian_apt_find_upstream_package_version_and_download_url "$@"
+			return
+		fi
+		declare name="${1}" mirror="${UBUNTU_MIRROR%/}" path
+		# The whole index is read (no early exit), so that no stage of the
+		# pipe fails on a closed pipe.
+		# shellcheck disable=SC2153 # ARCH is armbian/build's
+		path="$(curl -fsSL --max-time 120 "http://${mirror}/dists/${RELEASE}/main/binary-${ARCH}/Packages.xz" | xz -dc |
+			awk -v p="${name}" '$1 == "Package:" { found = ($2 == p) } found && $1 == "Filename:" && !done { print $2; done = 1 }')" || return 1
+		[[ "${path}" == pool/*/"${name}_"*"_${ARCH}.deb" ]] || return 1
+		found_package_filename="${path##*/}"
+		found_package_down_url="http://${mirror}/${path}"
+		found_package_version="${found_package_filename#"${name}_"}"
+		found_package_version="${found_package_version%"_${ARCH}.deb"}"
+		display_alert "Roxora" "${name} of Ubuntu ${RELEASE}: ${found_package_version} (${found_package_down_url})" "info"
+	}
+else
+	roxora_missing_functions+=(apt_find_upstream_package_version_and_download_url)
+fi
+
 function custom_apt_repo__roxora_0_release_sources() {
 	roxora_foreign_release || return 0
 	declare hw_suite
