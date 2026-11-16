@@ -894,13 +894,24 @@ else
 		tool_errors+=("the hwtool GTK app has no program or desktop entry")
 	gtk_words=", its GTK app with its desktop entry"
 fi
+# Roxora Imager: in the desktop images, not in the command line image. An
+# upgraded system has it only once a release package depends on it.
+imager_words=""
+if [[ "${flavor}" == cli ]]; then
+	is_installed roxora-imager && tool_errors+=("roxora-imager is in a command line image")
+elif [[ "${upgraded}" == no ]] || is_installed roxora-imager; then
+	repo_pkg roxora-imager "${IMAGER_VERSION}"
+	[[ -x "${R}/opt/roxora-imager/roxora-imager" ]] && grep -qs '^Exec=roxora-imager' "${R}/usr/share/applications/io.github.roxora_os.imager.desktop" ||
+		tool_errors+=("Roxora Imager has no program or desktop entry")
+	imager_words=", Roxora Imager ${IMAGER_VERSION} with its desktop entry"
+fi
 repo_pkg roxora-wallpapers "${WALLPAPERS_VERSION}"
 for f in /usr/share/backgrounds/roxora/roxora-facet-light.png /usr/share/backgrounds/roxora/roxora-facet-dark.png \
 	/usr/share/glib-2.0/schemas/90_roxora-wallpapers.gschema.override; do
 	[[ -s "${R}${f}" ]] || tool_errors+=("${f} missing")
 done
 if [[ ${#tool_errors[@]} -eq 0 ]]; then
-	pass "tools: from Roxora's repository: roxora-archive-keyring ${KEYRING_VERSION}, hwtool ${HWTOOL_VERSION} (runs)${gtk_words}, roxora-wallpapers ${WALLPAPERS_VERSION}"
+	pass "tools: from Roxora's repository: roxora-archive-keyring ${KEYRING_VERSION}, hwtool ${HWTOOL_VERSION} (runs)${gtk_words}${imager_words}, roxora-wallpapers ${WALLPAPERS_VERSION}"
 else
 	fail "tools: ${#tool_errors[@]} problems with Roxora's packages"
 	printf '%s\n' "${tool_errors[@]}" | detail

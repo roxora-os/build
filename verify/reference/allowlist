@@ -108,6 +108,8 @@ zlib1g-dev                       kernel headers build dependency
 roxora-archive-keyring           key of Roxora's apt repository
 roxora-hwtool                    Roxora hardware tool, command line
 roxora-hwtool-gtk                Roxora hardware tool, GTK app, in the desktop images
+roxora-imager                    Roxora Imager, in the desktop images
+libxss1                          dependency of roxora-imager 0.1.9 (Electron itself does not use it)
 roxora-wallpapers                Roxora wallpapers for a GNOME desktop, built from roxora-os/design by roxora-os/apt
 roxora-release                   Roxora release package: apt sources and pins, cloud-init settings, font directories
 roxora-cli                       Roxora release package of the command line flavor

@@ -739,9 +739,9 @@ function roxora_seed_snaps() {
 }
 
 # Roxora's packages, from Roxora's apt repository (roxora-repo.conf) at the
-# versions given there: the keyring, hwtool (and its GTK app in the desktop
-# flavors) and the wallpapers. The release packages of this commit,
-# roxora-release and the flavor's package, are built here by
+# versions given there: the keyring, hwtool (and in the desktop flavors its
+# GTK app and Roxora Imager) and the wallpapers. The release packages of
+# this commit, roxora-release and the flavor's package, are built here by
 # packages/build.sh, the script roxora-os/apt runs at the release's tag to
 # publish them; their dependencies come from the repositories. They take
 # over the configuration files the image has so far (the apt sources and
@@ -760,7 +760,7 @@ function post_repo_customize_image__roxora_tools_packages() {
 	[[ -f "${out}/${release_deb}" && -f "${out}/${flavor_deb}" ]] ||
 		exit_with_error "Roxora: packages/build.sh wrote no roxora-release or ${flavor_pkg}"
 	declare -a want=("roxora-archive-keyring=${KEYRING_VERSION}" "roxora-hwtool=${HWTOOL_VERSION}" "roxora-wallpapers=${WALLPAPERS_VERSION}")
-	[[ "${ROXORA_FLAVOR}" == cli ]] || want+=("roxora-hwtool-gtk=${HWTOOL_VERSION}")
+	[[ "${ROXORA_FLAVOR}" == cli ]] || want+=("roxora-hwtool-gtk=${HWTOOL_VERSION}" "roxora-imager=${IMAGER_VERSION}")
 	chroot_sdcard_apt_get install "${want[@]}" "/tmp/roxora-packages/${release_deb}" "/tmp/roxora-packages/${flavor_deb}"
 	rm -rf "${out}"
 
