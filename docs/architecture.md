@@ -180,10 +180,15 @@ whose Armbian release is another one:
 
 - `build.sh` copies Roxora's definition,
   [`userpatches/roxora/distributions/stonking/`](../userpatches/roxora/distributions/stonking),
-  into the checkout's `config/distributions/` for that build only, and
-  names it in the checkout's `.git/info/exclude`. Once armbian/build defines
-  the release itself, `build.sh` stops and says that Roxora's definition is
-  to be removed.
+  into the checkout's `config/distributions/`, and the Armbian release's
+  package lists under the release's name (`config/cli/resolute` to
+  `config/cli/stonking`, and the same for the per-architecture lists in
+  `config/optional`), so the root file system gets the packages a build of
+  the Armbian release gets. This is for that build only: what `build.sh`
+  adds is listed in the checkout's `.git/roxora-added`, removed before the
+  next build, and named in `.git/info/exclude`, so the checkout has no
+  local changes. Once armbian/build defines the release itself, `build.sh`
+  stops and says that Roxora's definition is to be removed.
 - The extension sets the distribution to Ubuntu, fetches the archive key
   for mmdebstrap as armbian/build does for the Armbian release (a wrapper
   around `fetch_distro_keyring`), and writes `ubuntu.sources` as
@@ -197,10 +202,6 @@ whose Armbian release is another one:
   name it reads from a list Armbian publishes for its releases. The
   extension reads it from the Ubuntu archive's index instead (a wrapper
   around `apt_find_upstream_package_version_and_download_url`).
-
-Armbian's package lists for the root file system are those it uses for
-every release (`config/cli/_all_distributions`); resolute has only a list
-for desktop builds, which Roxora does not use.
 
 ## Roxora's apt repository
 
