@@ -6,7 +6,8 @@
 # with Ubuntu's channels: the "snap:" lines of
 #   https://cdimage.ubuntu.com/releases/noble/release/ubuntu-24.04.5-desktop-arm64.manifest
 #   https://cdimage.ubuntu.com/releases/resolute/release/ubuntu-26.04.1-desktop-arm64.manifest
-# (read 2026-11-15; Ubuntu's Raspberry Pi desktop image manifests do not list
+#   https://cdimage.ubuntu.com/releases/stonking/release/ubuntu-26.10-desktop-arm64.manifest
+# (read 2026-11-15, the 26.10 one 2026-11-16; Ubuntu's Raspberry Pi desktop image manifests do not list
 # their snaps), which follow the desktop-minimal and desktop seeds of
 # https://git.launchpad.net/~ubuntu-core-dev/ubuntu-seeds/+git/ubuntu.
 # Left out: ubuntu-desktop-bootstrap, the installer of the live image, and
@@ -45,3 +46,16 @@ resolute   gnome-minimal  prompting-client           1/stable/ubuntu-26.04
 resolute   gnome-minimal  snap-store                 2/stable/ubuntu-26.04
 resolute   gnome-minimal  snapd-desktop-integration  stable/ubuntu-26.04
 resolute   gnome          thunderbird                stable/ubuntu-26.04
+
+stonking   gnome-minimal  snapd                      stable
+stonking   gnome-minimal  core24                     stable
+stonking   gnome-minimal  bare                       stable
+stonking   gnome-minimal  desktop-security-center    1/stable/ubuntu-26.10
+stonking   gnome-minimal  firefox                    stable/ubuntu-26.10
+stonking   gnome-minimal  gnome-46-2404              stable/ubuntu-26.10
+stonking   gnome-minimal  gtk-common-themes          stable/ubuntu-26.10
+stonking   gnome-minimal  mesa-2404                  stable/ubuntu-26.10
+stonking   gnome-minimal  prompting-client           1/stable/ubuntu-26.10
+stonking   gnome-minimal  snap-store                 2/stable/ubuntu-26.10
+stonking   gnome-minimal  snapd-desktop-integration  stable/ubuntu-26.10
+stonking   gnome          thunderbird                stable/ubuntu-26.10

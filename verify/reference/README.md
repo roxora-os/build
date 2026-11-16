@@ -10,11 +10,14 @@ must match a hardware-layer pattern (first record of
 | --- | --- | --- | --- |
 | `noble-server-cloudimg-arm64.manifest` | https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-arm64.manifest | 2026-11-11 | `820cdc3ef86f90ed996308913718960b6dbd1bccf8cd7cfad4032d0344f60711` |
 | `resolute-server-cloudimg-arm64.manifest` | https://cloud-images.ubuntu.com/releases/resolute/release-20261016/ubuntu-26.04-server-cloudimg-arm64.manifest | 2026-11-12 | `830e68b0892d14e5e886048a2379a287f652c88ee3440e4aab0820f05cec8bd2` |
+| `stonking-server-cloudimg-arm64.manifest` | https://cloud-images.ubuntu.com/releases/stonking/release-20261105/ubuntu-26.10-server-cloudimg-arm64.manifest | 2026-11-16 | `4418cbd2a0f7ec03d55e28a97a6197c40b6bec6698e49d1a7470cd3f22497b97` |
 | `noble-minimal-cloudimg-arm64.manifest` | https://cloud-images.ubuntu.com/minimal/releases/noble/release-20261105/ubuntu-24.04-minimal-cloudimg-arm64.manifest | 2026-11-11 | `0bae060ea20da8ae7ba24746e7d3cb69c40c8e68cb35c3459c427e9478423c4c` |
 | `noble-preinstalled-desktop-arm64+raspi.manifest` | https://cdimage.ubuntu.com/releases/noble/release/ubuntu-24.04.5-preinstalled-desktop-arm64+raspi.manifest | 2026-11-15 | `83948f6ada82ef64faad36f0a06f402774b927c2ec8a56bc02d6ba290ec5bba0` |
 | `resolute-preinstalled-desktop-arm64+raspi.manifest` | https://cdimage.ubuntu.com/releases/resolute/release/ubuntu-26.04.1-preinstalled-desktop-arm64+raspi.manifest | 2026-11-15 | `9c2ed8c760153f2016b0ea0fe237a0a165c5b93b9a48ce5616ce34618ef07de5` |
+| `stonking-preinstalled-desktop-arm64+raspi.manifest` | https://cdimage.ubuntu.com/releases/stonking/release/ubuntu-26.10-preinstalled-desktop-arm64+raspi.manifest | 2026-11-16 | `b4f404b6503542980cd08b782dc0f0e0574a53af511fe69c6327b68adecb7433` |
 | `noble-desktop-arm64.manifest` | https://cdimage.ubuntu.com/releases/noble/release/ubuntu-24.04.5-desktop-arm64.manifest | 2026-11-15 | `2821cb2c7c6e6968b27cec4246a0a2917646aae7050cf71ae9f25d406840bc57` |
 | `resolute-desktop-arm64.manifest` | https://cdimage.ubuntu.com/releases/resolute/release/ubuntu-26.04.1-desktop-arm64.manifest | 2026-11-15 | `22ab2d3e86f5a21f4c54f4dc964507d5209cd8fa2533fdb17c80930209b07991` |
+| `stonking-desktop-arm64.manifest` | https://cdimage.ubuntu.com/releases/stonking/release/ubuntu-26.10-desktop-arm64.manifest | 2026-11-16 | `12aaaf5f1492ea413ff86a0ca51bfccc3a86e8255bede97f8885f32b18693612` |
 
 The server cloud image of the image's release is the reference the check
 uses (picked by `VERSION_CODENAME` in the image's `/etc/os-release`): it is
@@ -30,9 +33,9 @@ reference is the server cloud image together with Ubuntu's desktop images:
   image that is written to a card as Roxora's are. Ubuntu publishes no
   preinstalled image of the minimal desktop alone; ubuntu-desktop depends on
   ubuntu-desktop-minimal, so the image of the full desktop (24.04) holds the
-  minimal set, and the 26.04 one is the minimal desktop itself.
+  minimal set, and the 26.04 and 26.10 ones are the minimal desktop itself.
 - `gnome` (ubuntu-desktop): those two and Ubuntu's live desktop image for
-  arm64. The 26.04 preinstalled image no longer carries the full desktop
+  arm64. From 26.04 the preinstalled image no longer carries the full desktop
   (LibreOffice, Thunderbird and the rest of ubuntu-desktop); the live image
   does, for the installer's extended selection.
 

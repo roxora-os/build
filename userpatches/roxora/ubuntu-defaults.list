@@ -2,3 +2,4 @@
 # lists replace with something else. The extension installs them again.
 # One line per release: the codename, then the packages.
 resolute chrony
+stonking chrony
