@@ -241,9 +241,13 @@ Ethernet gets its address by DHCP, and Wi-Fi is set up from the system menu
 (`nmtui` and `nmcli` work there too).
 
 Hardware Tool (the GTK app of `hwtool`) is in the application list, and the
-`hwtool` command works as on the command line image. The wallpaper is
-Roxora's Facet; the other Roxora wallpapers and Ubuntu's are in Settings,
-Appearance.
+`hwtool` command works as on the command line image. Roxora Imager is
+there too, for writing Roxora images to USB drives and to SD cards in a USB
+reader; it does not offer the board's own SD card slot, eMMC or NVMe (to
+move the system to eMMC or NVMe, use `hwtool boot migrate`). It is updated
+with the system's other packages (see [Updates](#5-updates)). The
+wallpaper is Roxora's Facet; the other Roxora wallpapers and Ubuntu's are
+in Settings, Appearance.
 
 ## 5. Updates
 

@@ -85,9 +85,10 @@ What the extension does, in order:
    network to NetworkManager and seeds the snaps (see
    [Desktop flavors](#desktop-flavors)).
 9. Adds Roxora's apt repository and installs Roxora's packages: the
-   keyring, hwtool (with its GTK app on a desktop) and the wallpapers from
-   the repository, and the release packages of the commit, which own
-   Roxora's apt sources, pins and cloud-init settings from then on (see
+   keyring, hwtool (with its GTK app and Roxora Imager on a desktop) and
+   the wallpapers from the repository, and the release packages of the
+   commit, which own Roxora's apt sources, pins and cloud-init settings
+   from then on (see
    [Roxora's apt repository](#roxoras-apt-repository)).
 10. On UEFI images only: leaves out `linux-dtb`, replaces the GRUB settings
    of Armbian's GRUB support with Roxora's, removes its wallpaper and fonts,
@@ -239,12 +240,13 @@ What the repository carries, and the versions an image installs from it
 | --- | --- | --- |
 | `roxora-archive-keyring` | the repository's key | roxora-os/apt |
 | `roxora-hwtool`, `roxora-hwtool-gtk` | hwtool and its GTK app, from hwtool's GitHub releases | roxora-os/hwtool |
+| `roxora-imager` | Roxora Imager, from its GitHub releases (desktop images) | roxora-os/imager |
 | `roxora-wallpapers` | the wallpapers, from roxora-os/design at a fixed commit | roxora-os/apt |
 | `roxora-release` | what every flavor of a release shares | this repository, [`packages/`](../userpatches/roxora/packages) |
 | `roxora-cli`, `roxora-desktop-gnome-minimal`, `roxora-desktop-gnome` | one per flavor | this repository |
 
-A new hwtool or Roxora release reaches the repository within the hour (its
-workflow looks every hour); a published version never changes.
+A new hwtool, Roxora Imager or Roxora release reaches the repository within
+the hour (its workflow looks every hour); a published version never changes.
 
 ### Release packages
 
@@ -600,8 +602,11 @@ groups, as Ubuntu's first desktop user is.
 Roxora's own parts are packages from
 [Roxora's apt repository](#roxoras-apt-repository): `roxora-wallpapers`, in
 every flavor, whose settings override makes Facet the default wallpaper,
-`roxora-hwtool-gtk`, the GTK app of hwtool, and the flavor's release
-package (`roxora-desktop-gnome-minimal` or `roxora-desktop-gnome`).
+`roxora-hwtool-gtk`, the GTK app of hwtool, `roxora-imager`, Roxora Imager,
+and the flavor's release package (`roxora-desktop-gnome-minimal` or
+`roxora-desktop-gnome`). The release packages of 2026.11.5 do not depend on
+`roxora-imager` yet, so a system upgraded from an earlier release gets it
+only with `sudo apt install roxora-imager`.
 
 The boot is not changed: no boot splash is set up, so kernel messages show
 until GDM starts.
@@ -628,8 +633,9 @@ throwaway overlay) and checks:
 - the release packages: `roxora-release` and the flavor's package at the
   release of `roxora-repo.conf` for the image's Ubuntu release, no other
   flavor package, and `/etc/roxora-release` with that release and flavor;
-  the keyring, hwtool (and its GTK app on a desktop) and the wallpapers at
-  the versions of `roxora-repo.conf`, from Roxora's repository;
+  the keyring, hwtool (and its GTK app and Roxora Imager on a desktop) and
+  the wallpapers at the versions of `roxora-repo.conf`, from Roxora's
+  repository;
 - none of the removed paths exist, `dpkg --verify` finds no changed Ubuntu
   files beyond `keep-modified.list`, and `/etc/os-release` is Ubuntu's;
 - board images: the boot script, environment, kernel, `uInitrd`, device
