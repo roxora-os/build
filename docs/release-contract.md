@@ -31,7 +31,7 @@ and one package per flavor (`roxora-cli`, `roxora-desktop-gnome-minimal`,
   without the Ubuntu part. `release.yml` stops unless it is the tag's
   version, so it is raised before a release is tagged, in the commit that
   starts the release's changes to the packages.
-- roxora-os/apt builds them from the tag and publishes them within the hour
+- roxora-os/apt builds them from the tag and publishes them within a few hours
   after the release is published (betas are not published there yet). A
   published version never changes.
 - On a system they write `/etc/roxora-release` (a link to

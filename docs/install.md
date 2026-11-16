@@ -268,7 +268,7 @@ From 2026.11.5 on, an image has Roxora's apt repository set up and a
 release package for its flavor: `roxora-cli`, `roxora-desktop-gnome-minimal`
 or `roxora-desktop-gnome`, with `roxora-release`, which they share. When a
 new Roxora release comes out, its release packages reach the repository
-within the hour, and the command above brings them: the system then has
+within a few hours, and the command above brings them: the system then has
 what that release changed in its image, as far as packages can carry it.
 That is new packages for the flavor (2026.11.5 adds NetworkManager to the
 command line image, 2026.11.6 Roxora Imager to the desktop images), new versions of hwtool and the wallpapers, Roxora's apt

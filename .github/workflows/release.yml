@@ -128,3 +128,19 @@ jobs:
           fi
           gh api repos/roxora-os/roxora-os.github.io/dispatches \
             -f event_type=build-updated -F "client_payload[source]=release ${GITHUB_REF_NAME}"
+
+      # The apt repository builds this release's packages from the tag. Its
+      # hourly schedule picks the release up too, but GitHub runs it only
+      # every few hours; tell it here. A token without access to
+      # roxora-os/apt only leaves a notice: the release is out either way.
+      - name: Tell the apt repository
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::notice::SITE_DISPATCH_TOKEN is not set; roxora-os/apt picks the release up at its next scheduled run."
+            exit 0
+          fi
+          gh api repos/roxora-os/apt/dispatches \
+            -f event_type=build-release -F "client_payload[tag]=${GITHUB_REF_NAME}" ||
+            echo "::notice::Could not notify roxora-os/apt (the token may not have access to it); it picks the release up at its next scheduled run."
