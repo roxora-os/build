@@ -4,23 +4,26 @@
 # SPDX-License-Identifier: GPL-2.0
 # Copyright (c) 2026 Ga Hing Woo <gahing@gahingwoo.com>
 #
-# Upgrade a Roxora image from Ubuntu 24.04 to 26.04 with Ubuntu's release
-# upgrader, as docs/install.md says, in a chroot.
+# Upgrade a Roxora image to the next Ubuntu release with Ubuntu's release
+# upgrader, as docs/install.md says, in a chroot: 24.04 to 26.04, or 26.04
+# to 26.10 (the release whose PREVIOUS in userpatches/roxora/releases.conf
+# is the image's).
 #
 #   sudo verify/release-upgrade-test.sh [--release-debs DIR] <image.img> <log directory>
 #
-# <image.img> is a 24.04 image with Roxora's repository and release
-# packages, as verify/upgrade-test.sh leaves it; it is changed in place, its
-# root file system first grown by 12 GiB. The commands of "From Ubuntu 24.04
-# to 26.04" in docs/install.md (between the roxora-release-upgrade markers)
-# run as they are written, do-release-upgrade with its non-interactive front
-# end, and nothing is changed by hand before or after. Then a second
-# "apt update" and "apt full-upgrade" must have nothing to do, and the
-# system must have the 26.04 release packages.
+# <image.img> is an image with Roxora's repository and release packages, as
+# verify/upgrade-test.sh leaves it; it is changed in place, its root file
+# system first grown by 12 GiB. The commands docs/install.md gives for the
+# upgrade from the image's release (between the
+# roxora-release-upgrade:<codename> markers) run as they are written,
+# do-release-upgrade with its non-interactive front end, and nothing is
+# changed by hand before or after. Then a second "apt update" and
+# "apt full-upgrade" must have nothing to do, and the system must have the
+# new release's release packages.
 #
 # --release-debs DIR: release packages of this commit for both Ubuntu
-# releases (DIR/noble/, DIR/resolute/), for a release that Roxora's
-# repository does not publish yet. They are offered from a local repository
+# releases (DIR/<old codename>/, DIR/<new codename>/), for a release that
+# Roxora's repository does not publish yet. They are offered from a local repository
 # with one suite per release, served over HTTP on 127.0.0.1 (the upgrader
 # does not accept a file: source as downloadable), which the upgrader is
 # told to move like Roxora's own (a second [ThirdPartyMirrors] entry), and
@@ -28,7 +31,7 @@
 #
 # Services do not run in the chroot and snapd is not running, so the
 # upgrader's snap steps are skipped; this says nothing about a running
-# system's reboot into 26.04. The SSH host keys the upgrade creates in a
+# system's reboot into the new release. The SSH host keys the upgrade creates in a
 # never-booted image are removed at the end. The upgrader's logs and a
 # report go to <log directory>. Exits 0 when the upgrade and the checks
 # above passed.
@@ -37,6 +40,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOC="$(dirname "${HERE}")/docs/install.md"
+RELEASES="$(dirname "${HERE}")/userpatches/roxora/releases.conf"
 
 release_debs=""
 args=()
@@ -59,19 +63,6 @@ done
 img="${args[0]}" logs="${args[1]}"
 mkdir -p "${logs}"
 logs="$(cd "${logs}" && pwd)"
-
-steps="$(awk '/<!-- roxora-release-upgrade:begin -->/ { on = 1; next } /<!-- roxora-release-upgrade:end -->/ { on = 0 } on && /^    / { print substr($0, 5) }' "${DOC}")"
-[[ -n "${steps}" ]] || {
-	echo "release-upgrade-test.sh: no roxora-release-upgrade block in ${DOC}" >&2
-	exit 1
-}
-grep -qx 'sudo do-release-upgrade' <<< "${steps}" || {
-	echo "release-upgrade-test.sh: the roxora-release-upgrade block has no 'sudo do-release-upgrade'" >&2
-	exit 1
-}
-# The upgrader's non-interactive front end answers its questions as a user
-# accepting the defaults would, without screen (no terminal here).
-steps="${steps//sudo do-release-upgrade/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -f DistUpgradeViewNonInteractive}"
 
 work="$(mktemp -d)"
 loop=""
@@ -125,12 +116,35 @@ in_chroot() {
 	chroot "${mnt}" env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LC_ALL=C.UTF-8 TERM=dumb "$@" < /dev/null
 }
 
+# From the image's Ubuntu release to the one that names it as PREVIOUS.
+from="$(in_chroot sh -c '. /etc/os-release && echo "${VERSION_CODENAME}"')"
+to="$(awk -v r="${from}" '!/^[[:space:]]*(#|$)/ && $3 == r { print $1 }' "${RELEASES}")"
+[[ -n "${to}" && "${to}" != *$'\n'* ]] || {
+	echo "release-upgrade-test.sh: releases.conf has no single release to upgrade ${from} to" >&2
+	exit 1
+}
+to_version="$(awk -v r="${to}" '!/^[[:space:]]*(#|$)/ && $1 == r { print $2 }' "${RELEASES}")"
+echo "release-upgrade-test.sh: Ubuntu ${from} to ${to} (${to_version})"
+
+steps="$(awk -v b="<!-- roxora-release-upgrade:${from}:begin -->" -v e="<!-- roxora-release-upgrade:${from}:end -->" '$0 == b { on = 1; next } $0 == e { on = 0 } on && /^    / { print substr($0, 5) }' "${DOC}")"
+[[ -n "${steps}" ]] || {
+	echo "release-upgrade-test.sh: no roxora-release-upgrade:${from} block in ${DOC}" >&2
+	exit 1
+}
+grep -qx 'sudo do-release-upgrade' <<< "${steps}" || {
+	echo "release-upgrade-test.sh: the roxora-release-upgrade:${from} block has no 'sudo do-release-upgrade'" >&2
+	exit 1
+}
+# The upgrader's non-interactive front end answers its questions as a user
+# accepting the defaults would, without screen (no terminal here).
+steps="${steps//sudo do-release-upgrade/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -f DistUpgradeViewNonInteractive}"
+
 test_repo="${work}/test-repo"
 test_uri=http://127.0.0.1:8765
 server=""
 if [[ -n "${release_debs}" ]]; then
 	declare suite
-	for suite in noble resolute; do
+	for suite in "${from}" "${to}"; do
 		d="${test_repo}/dists/${suite}/main/binary-arm64"
 		mkdir -p "${d}" "${test_repo}/pool/${suite}"
 		cp "${release_debs}/${suite}"/*.deb "${test_repo}/pool/${suite}/"
@@ -142,8 +156,8 @@ if [[ -n "${release_debs}" ]]; then
 	python3 -m http.server --bind 127.0.0.1 --directory "${test_repo}" 8765 > "${work}/http.log" 2>&1 &
 	server=$!
 	sleep 2
-	curl -fsS "${test_uri}/dists/resolute/Release" > /dev/null
-	printf '%s\n' 'Types: deb' "URIs: ${test_uri}" 'Suites: noble' 'Components: main' 'Trusted: yes' \
+	curl -fsS "${test_uri}/dists/${to}/Release" > /dev/null
+	printf '%s\n' 'Types: deb' "URIs: ${test_uri}" "Suites: ${from}" 'Components: main' 'Trusted: yes' \
 		> "${mnt}/etc/apt/sources.list.d/zz-roxora-release-test.sources"
 	printf '%s\n' '[ThirdPartyMirrors]' "roxora-release-test = ${test_uri}" \
 		> "${mnt}/etc/update-manager/release-upgrades.d/zz-roxora-release-test.cfg"
@@ -182,7 +196,7 @@ declare -i status=0
 	echo "== dpkg --verify:"
 	in_chroot dpkg --verify 2>&1 || true
 	in_chroot ls -la /etc/apparmor.d/disable 2>&1 || true
-	echo "== what keeps the packages a new 26.04 image does not have"
+	echo "== what keeps the packages a new ${to} image does not have"
 	for p in gcc-14-base network-manager-l10n grub-common gnome-terminal gnome-terminal-data systemd-timesyncd; do
 		in_chroot dpkg-query -W "${p}" > /dev/null 2>&1 || continue
 		echo "--- ${p}: $(in_chroot apt-mark showauto "${p}" | grep -q . && echo automatic || echo manual), installed reverse dependencies:"
@@ -198,8 +212,8 @@ declare -i status=0
 } 2>&1 | tee "${logs}/report.txt"
 
 grep -q '^== the commands exited with 0$' "${logs}/report.txt" || status=1
-in_chroot sh -c '. /etc/os-release && test "${VERSION_CODENAME}" = resolute' || {
-	echo "release-upgrade-test.sh: the system is not 26.04"
+[[ "$(in_chroot sh -c '. /etc/os-release && echo "${VERSION_CODENAME}"')" == "${to}" ]] || {
+	echo "release-upgrade-test.sh: the system is not ${to}"
 	status=1
 }
 in_chroot apt-get -s full-upgrade > "${work}/second.txt" 2>&1 || status=1
@@ -207,8 +221,8 @@ grep -q '^0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded' "${work
 	echo "release-upgrade-test.sh: apt full-upgrade still has work after the release upgrade"
 	status=1
 }
-[[ "$(in_chroot dpkg-query -W -f '${Version}' roxora-release 2> /dev/null)" == *+26.04 ]] || {
-	echo "release-upgrade-test.sh: roxora-release is not the 26.04 package"
+[[ "$(in_chroot dpkg-query -W -f '${Version}' roxora-release 2> /dev/null)" == *"+${to_version}" ]] || {
+	echo "release-upgrade-test.sh: roxora-release is not the ${to_version} package"
 	status=1
 }
 cp -a "${mnt}/var/log/dist-upgrade" "${logs}/" 2> /dev/null || true
@@ -220,5 +234,5 @@ in_chroot apt-get clean || true
 if [[ -e "${work}/resolv.conf.saved" || -L "${work}/resolv.conf.saved" ]]; then
 	cp -a "${work}/resolv.conf.saved" "${mnt}/etc/resolv.conf"
 fi
-((status == 0)) && echo "release-upgrade-test.sh: upgraded to 26.04; now run verify-image.sh --upgraded"
+((status == 0)) && echo "release-upgrade-test.sh: upgraded to ${to} (${to_version}); now run verify-image.sh --upgraded"
 exit "${status}"

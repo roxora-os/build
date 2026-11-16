@@ -1,9 +1,10 @@
-# Ubuntu release upgrade, 24.04 to 26.04: published 24.04 images of an
-# earlier release are first updated to this commit's release
+# Ubuntu release upgrades, 24.04 to 26.04 and 26.04 to 26.10: published
+# images of an earlier release are first updated to this commit's release
 # (verify/upgrade-test.sh), then upgraded with do-release-upgrade as
 # docs/install.md says (verify/release-upgrade-test.sh), then checked with
-# verify-image.sh --upgraded against the 26.04 expectations. The UEFI image
-# is also booted in QEMU afterwards. All in a chroot or QEMU, not on a board.
+# verify-image.sh --upgraded against the new release's expectations. The
+# UEFI image is also booted in QEMU afterwards. All in a chroot or QEMU, not
+# on a board.
 name: Release upgrade
 
 on:
@@ -13,6 +14,10 @@ on:
         description: Release tag of the 24.04 images
         type: string
         default: v2026.11.4
+      from_resolute:
+        description: Release tag of the 26.04 images
+        type: string
+        default: v2026.11.5
   push:
     paths:
       - userpatches/roxora/**
@@ -37,12 +42,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { board: radxa-rock-4d, flavor: cli, suffix: "" }
-          - { board: generic-rk3576-uefi, flavor: cli, suffix: "" }
-          - { board: radxa-rock-4d, flavor: gnome-minimal, suffix: "-gnome-minimal" }
-          - { board: radxa-rock-4d, flavor: gnome, suffix: "-gnome" }
+          - { release: noble, board: radxa-rock-4d, flavor: cli, suffix: "" }
+          - { release: noble, board: generic-rk3576-uefi, flavor: cli, suffix: "" }
+          - { release: noble, board: radxa-rock-4d, flavor: gnome-minimal, suffix: "-gnome-minimal" }
+          - { release: noble, board: radxa-rock-4d, flavor: gnome, suffix: "-gnome" }
+          # 2026.11.5 is the first release whose 26.04 images have the
+          # release packages.
+          - { release: resolute, board: radxa-rock-4d, flavor: cli, suffix: "" }
+          - { release: resolute, board: generic-rk3576-uefi, flavor: cli, suffix: "" }
+          - { release: resolute, board: radxa-rock-4d, flavor: gnome-minimal, suffix: "-gnome-minimal" }
     env:
-      FROM: ${{ inputs.from || 'v2026.11.4' }}
+      FROM: ${{ matrix.release == 'resolute' && (inputs.from_resolute || 'v2026.11.5') || (inputs.from || 'v2026.11.4') }}
+      RELEASE: ${{ matrix.release }}
       BOARD: ${{ matrix.board }}
       FLAVOR: ${{ matrix.flavor }}
       SUFFIX: ${{ matrix.suffix }}
@@ -65,16 +76,16 @@ jobs:
 
       - name: The release packages of this commit
         run: |
-          for suite in noble resolute; do
+          for suite in $(awk '!/^[[:space:]]*(#|$)/ { print $1 }' userpatches/roxora/releases.conf); do
             userpatches/roxora/packages/build.sh --suite "${suite}" --flavor "${FLAVOR}" --out "release-debs/${suite}"
           done
 
-      - name: The 24.04 image, updated to this commit's release
+      - name: The old image, updated to this commit's release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
-          name="roxora-${BOARD}-noble-edge${SUFFIX}-${FROM#v}"
+          name="roxora-${BOARD}-${RELEASE}-edge${SUFFIX}-${FROM#v}"
           echo "OLD=${name}" >> "$GITHUB_ENV"
           gh release download "${FROM}" --repo roxora-os/build --dir old \
             --pattern "${name}.img.xz" --pattern "${name}.img.xz.part*" --pattern "${name}.img.xz.sha256"
@@ -86,7 +97,7 @@ jobs:
           sha256sum -c "${name}.img.xz.sha256"
           cd ..
           mkdir -p logs
-          sudo verify/upgrade-test.sh --flavor "${FLAVOR}" --release-debs release-debs/noble \
+          sudo verify/upgrade-test.sh --flavor "${FLAVOR}" --release-debs "release-debs/${RELEASE}" \
             "old/${name}.img.xz" upgraded.img | tee logs/upgrade.txt
           rm -rf old
 
@@ -95,7 +106,7 @@ jobs:
           sudo verify/release-upgrade-test.sh --release-debs release-debs upgraded.img logs
           df -h /
 
-      - name: Verify the result as a 26.04 system
+      - name: Verify the result as a system of the new release
         if: ${{ !cancelled() }}
         run: |
           set -o pipefail
@@ -110,6 +121,6 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: release-upgrade-${{ matrix.board }}-${{ matrix.flavor }}
+          name: release-upgrade-${{ matrix.release }}-${{ matrix.board }}-${{ matrix.flavor }}
           path: logs/
           if-no-files-found: ignore

@@ -32,6 +32,12 @@ is the default. You can also start from the command line image and add the
 desktop later with `sudo apt install ubuntu-desktop-minimal`; the
 [FAQ](faq.md#are-there-desktop-images) says what differs then.
 
+The Ubuntu releases are 24.04 (`noble`) and 26.04 (`resolute`), both long
+term support releases, and 26.10 (`stonking`), which Ubuntu supports for
+nine months only, until July 2027. Take 26.04 unless you want the newer
+packages of 26.10 and will move on to the next Ubuntu release in time. The
+kernel, U-Boot and firmware of a 26.10 image are those of the 26.04 image.
+
 ## 1. Download
 
 Pick the image for your board from the website's Download page
@@ -65,9 +71,9 @@ Then check the joined file as below; the parts can be deleted once it says
 `SHA256SUMS` in the release also give the SHA-256 of each part, to check a
 single part before joining.
 
-Check the files (`<release>` is `noble` for Ubuntu 24.04 or `resolute` for
-Ubuntu 26.04; a desktop image has `-gnome-minimal` or `-gnome` after
-`edge`):
+Check the files (`<release>` is `noble` for Ubuntu 24.04, `resolute` for
+Ubuntu 26.04 or `stonking` for Ubuntu 26.10; a desktop image has
+`-gnome-minimal` or `-gnome` after `edge`):
 
     sha256sum -c roxora-<board>-<release>-edge-<version>.img.xz.sha256
     sha256sum -c roxora-<board>-<release>-edge-<version>-spi.img.sha256   # ROCK 4D
@@ -317,12 +323,12 @@ the procedure below passes in CI, on images in a chroot, but nobody has
 booted a board after it. Until then, writing the 26.04 image is the safe
 way. If you try it, have a backup of your data.
 
-<!-- roxora-release-upgrade:begin -->
+<!-- roxora-release-upgrade:noble:begin -->
 
     sudo apt update && sudo apt full-upgrade
     sudo do-release-upgrade
 
-<!-- roxora-release-upgrade:end -->
+<!-- roxora-release-upgrade:noble:end -->
 
 The system needs Roxora's repository and its release package first (any
 image from 2026.11.5 on, or one added to as above). The upgrader then
@@ -334,6 +340,32 @@ sources (PPAs, for example) are turned off, as on Ubuntu. Accept what the
 upgrader proposes, and reboot when it asks. Afterwards `cat /etc/roxora-release`
 says `ROXORA_UBUNTU_CODENAME=resolute`. What differs from a new 26.04 image
 is in [architecture.md](architecture.md#ubuntu-release-upgrades).
+
+### From Ubuntu 26.04 to 26.10
+
+The same holds here: it passes in CI, in a chroot, and has not been tried
+on a board. 26.10 is supported only until July 2027 (see
+[Which image](#which-image)); after that a system on it has to move on to
+the next Ubuntu release. Wait for a Roxora release that has 26.10 images:
+only from then on does Roxora's repository carry the 26.10 release
+packages the upgrade needs.
+
+<!-- roxora-release-upgrade:resolute:begin -->
+
+    sudo sed -i 's/^Prompt=.*/Prompt=normal/' /etc/update-manager/release-upgrades
+    sudo apt update && sudo apt full-upgrade
+    sudo do-release-upgrade
+
+<!-- roxora-release-upgrade:resolute:end -->
+
+An Ubuntu LTS release offers only the next LTS release; `Prompt=normal`
+makes the upgrader offer 26.10 as well (and later releases after it). The
+upgrade then goes as from 24.04, with one difference: Armbian has no 26.10
+suite, so the upgrader turns the hardware repository's source off when it
+does not find one, and the 26.10 `roxora-release` turns it on again with
+the 26.04 suite, which a 26.10 system keeps (the kernel, U-Boot and
+firmware do not change). Afterwards `cat /etc/roxora-release` says
+`ROXORA_UBUNTU_CODENAME=stonking`.
 
 ## Problems
 

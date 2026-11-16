@@ -84,7 +84,7 @@ Linux; for the `vendor` kernel see
 The GPU and the video decoders use the upstream kernel drivers, with their
 userspace from the Ubuntu archive: mesa for the GPU, and V4L2 for the video
 decoders. What works depends on the upstream kernel and on the versions in
-the Ubuntu release (24.04 or 26.04).
+the Ubuntu release (24.04, 26.04 or 26.10).
 
 On the ROCK 4D the edge kernel has a driver for the NPU: the image ships the
 mainline Rocket driver (`rocket.ko`), and the board's device tree enables
@@ -192,6 +192,15 @@ Not supported yet. `sudo do-release-upgrade` works on Roxora from
 upgrader itself, but it has not been run on a board. The steps are in
 [install.md](install.md#from-ubuntu-2404-to-2604); writing the 26.04 image
 is the safe way until a board has passed them.
+
+## Can I upgrade from Ubuntu 26.04 to 26.10?
+
+The same holds: it passes in CI and has not been run on a board. The
+upgrader offers 26.10 only once `Prompt=normal` is set, and the 26.10
+release packages are in Roxora's repository from the first Roxora release
+with 26.10 images on. The steps are in
+[install.md](install.md#from-ubuntu-2604-to-2610). 26.10 is supported by
+Ubuntu until July 2027; 26.04 until 2031.
 
 ## Can I update the kernel and go back?
 
