@@ -195,10 +195,12 @@ is the safe way until a board has passed them.
 
 ## Can I upgrade from Ubuntu 26.04 to 26.10?
 
-The same holds: it passes in CI and has not been run on a board. The
-upgrader offers 26.10 only once `Prompt=normal` is set, and the 26.10
-release packages are in Roxora's repository from the first Roxora release
-with 26.10 images on. The steps are in
+Not yet: Ubuntu has not opened that upgrade (November 2026), so write the
+26.10 image. Once it has, the upgrader offers 26.10 when `Prompt=normal`
+is set, and needs the 26.10 release packages, which are in Roxora's
+repository from the first Roxora release with 26.10 images on. CI runs the
+steps in a chroot already (with `do-release-upgrade -d` until Ubuntu opens
+the upgrade); nobody has run them on a board. The steps are in
 [install.md](install.md#from-ubuntu-2604-to-2610). 26.10 is supported by
 Ubuntu until July 2027; 26.04 until 2031.
 

@@ -343,12 +343,17 @@ is in [architecture.md](architecture.md#ubuntu-release-upgrades).
 
 ### From Ubuntu 26.04 to 26.10
 
-The same holds here: it passes in CI, in a chroot, and has not been tried
-on a board. 26.10 is supported only until July 2027 (see
-[Which image](#which-image)); after that a system on it has to move on to
-the next Ubuntu release. Wait for a Roxora release that has 26.10 images:
-only from then on does Roxora's repository carry the 26.10 release
-packages the upgrade needs.
+Not possible yet. Ubuntu has not opened the upgrade from 26.04 to 26.10:
+on 2026-11-16 its list of releases to upgrade to
+(https://changelogs.ubuntu.com/meta-release) did not have 26.10, so
+`do-release-upgrade` says "No new release found". Write the 26.10 image
+instead. Once Ubuntu offers the upgrade, the commands below are the way;
+CI runs them in a chroot now already, with `do-release-upgrade -d` in place
+of `do-release-upgrade` until then, and nobody has tried them on a board.
+They also need a Roxora release that has 26.10 images: only from then on
+does Roxora's repository carry the 26.10 release packages. 26.10 is
+supported only until July 2027 (see [Which image](#which-image)); after
+that a system on it has to move on to the next Ubuntu release.
 
 <!-- roxora-release-upgrade:resolute:begin -->
 

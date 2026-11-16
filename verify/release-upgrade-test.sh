@@ -137,7 +137,18 @@ grep -qx 'sudo do-release-upgrade' <<< "${steps}" || {
 }
 # The upgrader's non-interactive front end answers its questions as a user
 # accepting the defaults would, without screen (no terminal here).
-steps="${steps//sudo do-release-upgrade/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -f DistUpgradeViewNonInteractive}"
+#
+# Ubuntu offers an upgrade only once the new release is in its meta-release
+# file; until then do-release-upgrade says "No new release found". A new
+# release that is only in meta-release-development (26.10 in November
+# 2026) is reached with -d: the test then shows what the commands will do
+# once Ubuntu offers the upgrade, and says that it used -d.
+devel=""
+if ! curl -fsS --max-time 60 https://changelogs.ubuntu.com/meta-release | grep -qx "Dist: ${to}"; then
+	devel=" -d"
+	echo "release-upgrade-test.sh: Ubuntu does not offer ${to} in its meta-release file yet; running do-release-upgrade with -d (meta-release-development)"
+fi
+steps="${steps//sudo do-release-upgrade/sudo RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade${devel} -f DistUpgradeViewNonInteractive}"
 
 test_repo="${work}/test-repo"
 test_uri=http://127.0.0.1:8765

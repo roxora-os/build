@@ -369,8 +369,12 @@ through snapd, as on Ubuntu; in a desktop image that has not booted the
 24.04 seed stays and snapd installs it at the first boot), and nothing
 reboots into 26.04 there.
 
-From 26.04 to 26.10 ([install.md](install.md#from-ubuntu-2604-to-2610)) it
-is the same, with two differences:
+From 26.04 to 26.10 ([install.md](install.md#from-ubuntu-2604-to-2610)):
+Ubuntu has not opened this upgrade yet (26.10 is only in its
+meta-release-development file, November 2026), so
+`release-upgrade-test.sh` runs `do-release-upgrade -d` while the release is
+missing from https://changelogs.ubuntu.com/meta-release, and says so. The
+upgrade is the same as from 24.04, with two differences:
 
 - 26.04 is an LTS release, and its upgrader offers only the next LTS
   release unless `Prompt=normal` is set in
