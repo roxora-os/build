@@ -298,6 +298,25 @@ else
 	roxora_missing_functions+=(apt_find_upstream_package_version_and_download_url)
 fi
 
+# create_sources_list_and_deploy_repo_key runs "ln -fs
+# armbian-archive-keyring.gpg /usr/share/keyrings/armbian.gpg" in the
+# chroot at every stage. On Ubuntu 26.10 (its ln is rust-coreutils 0.12)
+# that failed in CI with "No such file or directory" at the image-early
+# stage, where the link was there already (the root file system stage had
+# made it without trouble). For a release Armbian does not define, remove
+# the link first; the call makes it again.
+if declare -F create_sources_list_and_deploy_repo_key > /dev/null; then
+	eval "$(declare -f create_sources_list_and_deploy_repo_key | sed '1s/^create_sources_list_and_deploy_repo_key /roxora_armbian_create_sources_list_and_deploy_repo_key /')"
+	function create_sources_list_and_deploy_repo_key() {
+		if roxora_foreign_release && [[ -n "${3:-}" && -L "${3%/}/usr/share/keyrings/armbian.gpg" ]]; then
+			rm -f "${3%/}/usr/share/keyrings/armbian.gpg"
+		fi
+		roxora_armbian_create_sources_list_and_deploy_repo_key "$@"
+	}
+else
+	roxora_missing_functions+=(create_sources_list_and_deploy_repo_key)
+fi
+
 function custom_apt_repo__roxora_0_release_sources() {
 	roxora_foreign_release || return 0
 	declare hw_suite
