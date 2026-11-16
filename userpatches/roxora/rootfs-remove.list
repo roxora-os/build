@@ -6,6 +6,9 @@
 # apt: emptied Ubuntu Pro hook and the armbian-config repository
 /etc/apt/apt.conf.d/20apt-esm-hook.conf
 /etc/apt/sources.list.d/armbian-config.sources
+# an Ubuntu archive key armbian/build copies in from the older ubuntu-keyring
+# it fetches for mmdebstrap; removed only where no package ships it (26.10)
+/etc/apt/trusted.gpg.d/ubuntu-keyring-2012-cdimage.gpg
 
 # image information and settings read only by removed Armbian tools
 # (/etc/armbian.txt is written into the BSP package after the extension's
